@@ -1,0 +1,751 @@
+---
+title: "Lista 1"
+author: "Helena Sękowska-Słoka, nr indeksu 321531"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+toc-title: "SPIS TREŚCI"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning = FALSE)
+options(Encoding="UTF-8")
+```
+
+```{r biblioteki, eval=TRUE, message=FALSE, echo=FALSE}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library("gridExtra") 
+library(scales)
+library(matrixStats)
+library(kableExtra)
+```
+
+\newpage
+
+```{r setseed, eval=TRUE, message=FALSE, echo=FALSE}
+set.seed(416)
+```
+
+# Zadanie 1
+
+## Przygotowanie zbioru obserwacji oraz obliczenie wartości estymatorów
+  
+Estymator jest to szacowanie parametru dla całego zbioru na podstawie obliczenia jego wartości dla pewnej próby z tegoż zbioru.
+\newline
+W tym zadaniu losujemy próby z rozkładów normalnych $N(\theta, \sigma^2)$, estymujemy zaś parametr $\theta$, czyli wartość oczekiwaną.
+\newline
+Generujemy 9 zbiorów obserwacji z rozkładów danych w zadaniach: 10 000 prób po 50 obserwacji każda, osobno dla podpunktów a, b oraz c, z podziałem na różne wartości $n$, jak podano w poleceniu zadania 7. Następnie dla każdej z prób obliczamy wartość estymatora parametru $\theta$ w postaci kolejno średniej arytmetycznej, mediany i dwóch różnych średnich ważonych.
+\newline
+Przy średniej ważonej z własnym wyborem wag zastosujemy wagi wylosowane według schematu:
+\newline
+
+1. Losujemy wektor pięćdziesięciu dodatnich liczb rzeczywistych (niejednakowych).
+2. Dzielimy każdą liczbę przez sumę wszystkich liczb z wektora, uzyskując tym samym wektor
+  wag sumujących się do 1.
+  
+Losowanie poprzedzamy ustawieniem ziarna w celu zachowania powtarzalności uzyskanych wyników.
+
+```{r zadanie1_przygotowanie_prob, eval=TRUE, echo=FALSE}
+# zadane w treści liczebności próbek
+n.50 <- 50
+n.20 <- 20
+n.100 <- 100
+
+# thety kolejno z podpunktów a, b, c
+theta.a <- 1
+theta.b <- 4
+theta.c <- 1
+
+# sigmy kolejno z podpunktów a, b, c
+sigma.a <- 1
+sigma.b <- 1
+sigma.c <- 2
+
+# liczba prób do wylosowania
+k1 <- 10000
+
+# Najpierw generujemy macierz dla zadanych n, k, theta, sigma, gdzie:
+# n - liczba obserwacji w pojedynczej próbie
+# k - liczba prób (wierszy)
+# theta - wartość oczekiwana
+# sigma - odchylenie standardowe
+# Każdy wiersz macierzy to pojedynczy eksperyment/próba. Wobec tego wszelkie
+# wartości estymatorów będziemy liczyć po wierszach.
+
+# losowanie wag z podpunktu iii) oraz ich obliczanie dla podpunktu iv)
+
+# Dla n=20:
+weights.1.20.v <- runif(20)
+weights.1.20.v <- weights.1.20.v/sum(weights.1.20.v)
+
+v.20 <- 1:20
+weights.2.20.v <- dnorm(qnorm((v.20-1)/20)) - dnorm(qnorm(v.20/20))
+
+# Dla n=50:
+weights.1.50.v <- runif(50)
+weights.1.50.v <- weights.1.50.v/sum(weights.1.50.v)
+
+v.50 <- 1:50
+weights.2.50.v <- dnorm(qnorm((v.50-1)/50)) - dnorm(qnorm(v.50/50))
+
+# Dla n=100:
+weights.1.100.v <- runif(100)
+weights.1.100.v <- weights.1.100.v/sum(weights.1.100.v)
+
+v.100 <- 1:100
+weights.2.100.v <- dnorm(qnorm((v.100-1)/100)) - dnorm(qnorm(v.100/100))
+
+
+
+# Następnie zwracamy ramkę z estymatorami statystyk dla danej serii prób
+# (średnia, mediana, 2 średnie ważone)
+get.estimators.df <- function(n, k, theta, sigma, weights.1.v,  weights.2.v) {
+  # macierz prób
+  sample.m <- matrix(rnorm(k*n, theta, sigma), nrow = k, ncol = n)
+  # estymatory:
+  means.v <- rowMeans(sample.m)
+  medians.v <- rowMedians(sample.m)
+  w.means.1.v <- rowWeightedMeans(sample.m, w = weights.1.v)
+  w.means.2.v <- apply(sample.m, 1, function(x) sum(sort(x)*weights.2.v))
+  # to zwracamy:
+  data.frame('mean' = means.v, 'median' = medians.v, 'weighted.mean.1' = w.means.1.v,
+                       'weighted.mean.2' = w.means.2.v)
+}
+
+
+est.a.n.50.df <- get.estimators.df(n.50, k1, theta.a, sigma.a, weights.1.50.v, weights.2.50.v)
+est.b.n.50.df <- get.estimators.df(n.50, k1, theta.b, sigma.b, weights.1.50.v, weights.2.50.v)
+est.c.n.50.df <- get.estimators.df(n.50, k1, theta.c, sigma.c, weights.1.50.v, weights.2.50.v)
+
+est.a.n.20.df <- get.estimators.df(n.20, k1, theta.a, sigma.a, weights.1.20.v, weights.2.20.v)
+est.b.n.20.df <- get.estimators.df(n.20, k1, theta.b, sigma.b, weights.1.20.v, weights.2.20.v)
+est.c.n.20.df <- get.estimators.df(n.20, k1, theta.c, sigma.c, weights.1.20.v, weights.2.20.v)
+
+est.a.n.100.df <- get.estimators.df(n.100, k1, theta.a, sigma.a, weights.1.100.v, weights.2.100.v)
+est.b.n.100.df <- get.estimators.df(n.100, k1, theta.b, sigma.b, weights.1.100.v, weights.2.100.v)
+est.c.n.100.df <- get.estimators.df(n.100, k1, theta.c, sigma.c, weights.1.100.v, weights.2.100.v)
+```
+
+\newpage
+## Oszacowanie wariancji, błędu średniokwadratowego oraz obciążenia każdego z estymatorów
+
+Otrzymawszy wartości estymatorów parametru $\theta$, oszacowano wariancję, błąd średniokwadratowy oraz obciążenie każdego z estymatorów, osobno dla każdego podpunktu, uwzględniając liczebności prób z zadania numer 7. 
+\newline
+Wyniki podsumowano w tabelach.
+
+```{r zadanie1_tabelka_srednia, eval=TRUE, echo=FALSE}
+# wektor nazw wierszy
+rownames.v <- c("wariancja", "MSE", "obciążenie")
+
+# funkcja pomocnicza licząca błąd średniokwadratowy dla zadanego wektora estymatora i thety
+get.MSE.n <- function(est.v, theta) {
+  sum(((est.v-theta)^2))/length(est.v)
+}
+
+# funkcja pomocnicza licząca obciążenie dla zadanego wektora estymatora i thety
+get.bias.n <- function(est.v, theta) {
+  mean(est.v) - theta
+}
+
+# funkcja pomocnicza zwracająca wektor wariancji, bł. śr., obciążenia
+rows.values.v <- function(est.v, theta) {
+  round(c(var(est.v), get.MSE.n(est.v, theta), get.bias.n(est.v, theta)), 4)
+}
+
+# a
+mean.stats.a.n.20.v <- rows.values.v(est.a.n.20.df$mean, theta.a)
+mean.stats.a.n.50.v <- rows.values.v(est.a.n.50.df$mean, theta.a)
+mean.stats.a.n.100.v <- rows.values.v(est.a.n.100.df$mean, theta.a)
+
+# b
+mean.stats.b.n.20.v <- rows.values.v(est.b.n.20.df$mean, theta.b)
+mean.stats.b.n.50.v <- rows.values.v(est.b.n.50.df$mean, theta.b)
+mean.stats.b.n.100.v <- rows.values.v(est.b.n.100.df$mean, theta.b)
+
+# c
+mean.stats.c.n.20.v <- rows.values.v(est.c.n.20.df$mean, theta.c)
+mean.stats.c.n.50.v <- rows.values.v(est.c.n.50.df$mean, theta.c)
+mean.stats.c.n.100.v <- rows.values.v(est.c.n.100.df$mean, theta.c)
+
+
+frame.mean <- data.frame(rownames.v, mean.stats.a.n.20.v, mean.stats.a.n.50.v, mean.stats.a.n.100.v, 
+                         mean.stats.b.n.20.v, mean.stats.b.n.50.v, mean.stats.b.n.100.v,
+                         mean.stats.c.n.20.v, mean.stats.c.n.50.v, mean.stats.c.n.100.v)
+colnames.v <- c("n", rep(c("20", "50", "100"), 3))
+colnames(frame.mean) = colnames.v
+
+kbl(frame.mean, caption = "Średnia arytmetyczna") %>%
+  kable_styling(latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+```{r zadanie1_tabelka_mediana, eval=TRUE, echo=FALSE}
+# a
+median.stats.a.n.20.v <- rows.values.v(est.a.n.20.df$median, theta.a)
+median.stats.a.n.50.v <- rows.values.v(est.a.n.50.df$median, theta.a)
+median.stats.a.n.100.v <- rows.values.v(est.a.n.100.df$median, theta.a)
+
+# b
+median.stats.b.n.20.v <- rows.values.v(est.b.n.20.df$median, theta.b)
+median.stats.b.n.50.v <- rows.values.v(est.b.n.50.df$median, theta.b)
+median.stats.b.n.100.v <- rows.values.v(est.b.n.100.df$median, theta.b)
+
+# c
+median.stats.c.n.20.v <- rows.values.v(est.c.n.20.df$median, theta.c)
+median.stats.c.n.50.v <- rows.values.v(est.c.n.50.df$median, theta.c)
+median.stats.c.n.100.v <- rows.values.v(est.c.n.100.df$median, theta.c)
+
+
+frame.median <- data.frame(rownames.v, median.stats.a.n.20.v, median.stats.a.n.50.v, 
+                           median.stats.a.n.100.v, median.stats.b.n.20.v, 
+                           median.stats.b.n.50.v, median.stats.b.n.100.v,
+                           median.stats.c.n.20.v, median.stats.c.n.50.v, median.stats.c.n.100.v)
+
+colnames(frame.median) = colnames.v
+
+kbl(frame.median, caption = "Mediana") %>%
+  kable_styling(latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+```{r zadanie1_tabelka_srednia_wazona1, eval=TRUE, echo=FALSE}
+# a
+weighted.mean.1.stats.a.n.20.v <- rows.values.v(est.a.n.20.df$weighted.mean.1, theta.a)
+weighted.mean.1.stats.a.n.50.v <- rows.values.v(est.a.n.50.df$weighted.mean.1, theta.a)
+weighted.mean.1.stats.a.n.100.v <- rows.values.v(est.a.n.100.df$weighted.mean.1, theta.a)
+
+# b
+weighted.mean.1.stats.b.n.20.v <- rows.values.v(est.b.n.20.df$weighted.mean.1, theta.b)
+weighted.mean.1.stats.b.n.50.v <- rows.values.v(est.b.n.50.df$weighted.mean.1, theta.b)
+weighted.mean.1.stats.b.n.100.v <- rows.values.v(est.b.n.100.df$weighted.mean.1, theta.b)
+
+# c
+weighted.mean.1.stats.c.n.20.v <- rows.values.v(est.c.n.20.df$weighted.mean.1, theta.c)
+weighted.mean.1.stats.c.n.50.v <- rows.values.v(est.c.n.50.df$weighted.mean.1, theta.c)
+weighted.mean.1.stats.c.n.100.v <- rows.values.v(est.c.n.100.df$weighted.mean.1, theta.c)
+
+
+frame.weighted.mean.1 <- data.frame(rownames.v, weighted.mean.1.stats.a.n.20.v, weighted.mean.1.stats.a.n.50.v, 
+                                    weighted.mean.1.stats.a.n.100.v, weighted.mean.1.stats.b.n.20.v,
+                                    weighted.mean.1.stats.b.n.50.v, weighted.mean.1.stats.b.n.100.v,
+                                    weighted.mean.1.stats.c.n.20.v, weighted.mean.1.stats.c.n.50.v,
+                                    weighted.mean.1.stats.c.n.100.v)
+
+colnames(frame.weighted.mean.1) = colnames.v
+
+kbl(frame.weighted.mean.1, caption = "Średnia ważona 1") %>%
+  kable_styling(latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+```{r zadanie1_tabelka_srednia_wazona2, eval=TRUE, echo=FALSE}
+# a
+weighted.mean.2.stats.a.n.20.v <- rows.values.v(est.a.n.20.df$weighted.mean.2, theta.a)
+weighted.mean.2.stats.a.n.50.v <- rows.values.v(est.a.n.50.df$weighted.mean.2, theta.a)
+weighted.mean.2.stats.a.n.100.v <- rows.values.v(est.a.n.100.df$weighted.mean.2, theta.a)
+
+# b
+weighted.mean.2.stats.b.n.20.v <- rows.values.v(est.b.n.20.df$weighted.mean.2, theta.b)
+weighted.mean.2.stats.b.n.50.v <- rows.values.v(est.b.n.50.df$weighted.mean.2, theta.b)
+weighted.mean.2.stats.b.n.100.v <- rows.values.v(est.b.n.100.df$weighted.mean.2, theta.b)
+
+# c
+weighted.mean.2.stats.c.n.20.v <- rows.values.v(est.c.n.20.df$weighted.mean.2, theta.c)
+weighted.mean.2.stats.c.n.50.v <- rows.values.v(est.c.n.50.df$weighted.mean.2, theta.c)
+weighted.mean.2.stats.c.n.100.v <- rows.values.v(est.c.n.100.df$weighted.mean.2, theta.c)
+
+
+frame.weighted.mean.2 <- data.frame(rownames.v, weighted.mean.2.stats.a.n.20.v, weighted.mean.2.stats.a.n.50.v, 
+                                    weighted.mean.2.stats.a.n.100.v, weighted.mean.2.stats.b.n.20.v,
+                                    weighted.mean.2.stats.b.n.50.v, weighted.mean.2.stats.b.n.100.v,
+                                    weighted.mean.2.stats.c.n.20.v, weighted.mean.2.stats.c.n.50.v,
+                                    weighted.mean.2.stats.c.n.100.v)
+
+colnames(frame.weighted.mean.2) = colnames.v
+
+kbl(frame.weighted.mean.2, caption = "Średnia ważona 2") %>%
+  kable_styling(latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+## Wnioski
+
+Estymatorem o najmniejszej wariancji dla każdego podpunktu okazała się druga średnia ważona. W każdym przypadku miała ona wariancję ponad dwukrotnie mniejszą niż następna w kolejności średnia arytmetyczna. Największą wariancję zaś uzyskała mediana, szczególnie w podpunkcie c) dla $n = 20$. Co więcej, dla podpunktu c), czyli rozkładu $N(\theta = 1, \sigma^2 = 4)$, wariancja była największa (dla każdego estymatora).
+\newline
+Dla podpunktu a), czyli rozkładu $N(\theta = 1, \sigma^2 = 1)$, najmniejszy błąd średniokwadratowy (MSE) miała również druga średnia ważona. Jednakże w podpunkcie b) (rozkład $N(\theta = 4, \sigma^2 = 1)$) zdecydowanie lepiej wypada średnia arytmetyczna - błąd dla drugiej średniej ważonej jest tu wyjątkowo duży, o dwa rzędy wielkości większy od pozostałych. Chcąc znaleźć potencjalną przyczynę tej anomalii, sporządźmy histogramy estymatorów dla tego podpunktu:
+
+```{r zadanie1_histogramy_przyklad_b, eval=TRUE, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+
+get.estimator.hist <- function(estimator.v, title, subtitle, x_start, x_stop) {
+   ggplot() +
+     aes(estimator.v) +
+     geom_histogram(binwidth = 0.05) +
+     xlim(c(x_start, x_stop)) +
+     labs(title = title, subtitle = subtitle,
+          x = "wartość estymatora", y = "liczba estymatorów") +
+     theme_light() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(size = 10, hjust = 0.5))
+}
+
+est.b.mean.n.20.hist <- get.estimator.hist(est.b.n.20.df$mean, "średnia arytmetyczna", "n=20", 3, 5)
+est.b.mean.n.50.hist <- get.estimator.hist(est.b.n.50.df$mean, "średnia arytmetyczna", "n=50", 3, 5)
+est.b.mean.n.100.hist <- get.estimator.hist(est.b.n.100.df$mean, "średnia arytmetyczna", "n=100", 3, 5)
+
+est.b.median.n.20.hist <- get.estimator.hist(est.b.n.20.df$median, "mediana", "n=20", 3, 5)
+est.b.median.n.50.hist <- get.estimator.hist(est.b.n.50.df$median, "mediana", "n=50", 3, 5)
+est.b.median.n.100.hist <- get.estimator.hist(est.b.n.100.df$median, "mediana", "n=100", 3, 5)
+
+est.b.weighted.mean.1.n.20.hist <- 
+  get.estimator.hist(est.b.n.20.df$weighted.mean.1, "średnia ważona 1", "n=20", 3, 5)
+est.b.weighted.mean.1.n.50.hist <-
+  get.estimator.hist(est.b.n.50.df$weighted.mean.1, "średnia ważona 1", "n=50", 3, 5)
+est.b.weighted.mean.1.n.100.hist <-
+  get.estimator.hist(est.b.n.100.df$weighted.mean.1, "średnia ważona 1", "n=100", 3, 5)
+
+est.b.weighted.mean.2.n.20.hist <- 
+  get.estimator.hist(est.b.n.20.df$weighted.mean.2, "średnia ważona 2", "n=20", 0, 2)
+est.b.weighted.mean.2.n.50.hist <-
+  get.estimator.hist(est.b.n.50.df$weighted.mean.2, "średnia ważona 2", "n=50", 0, 2)
+est.b.weighted.mean.2.n.100.hist <-
+  get.estimator.hist(est.b.n.100.df$weighted.mean.2, "średnia ważona 2", "n=100", 0, 2)
+
+grid.arrange(est.b.mean.n.20.hist, est.b.mean.n.50.hist, est.b.mean.n.100.hist,
+             est.b.median.n.20.hist, est.b.median.n.50.hist, est.b.median.n.100.hist,
+             est.b.weighted.mean.1.n.20.hist, est.b.weighted.mean.1.n.50.hist,
+             est.b.weighted.mean.1.n.100.hist, est.b.weighted.mean.2.n.20.hist,
+             est.b.weighted.mean.2.n.50.hist, est.b.weighted.mean.2.n.100.hist, ncol=3)
+
+```
+
+Zwróćmy uwagę na zakres osi $X$ w przypadku drugiej średniej ważonej - jej wartości nie oscylują, jak w pozostałych przypadkach, w okolicy $4$, a w okolicy $1$. Zauważmy, że dla tego podpunktu wartość $\theta$ to $4$, jednak wartość $\sigma$ to $1$. W podpunkcie a) zachodziło $\theta = \sigma$, zaś w podpunkcie c), gdzie $\theta$ i $\sigma$ są różne, druga średnia ważona również obarczona jest znacznie większym błędem niż pozostałe estymatory, jednak tam różnica nie jest aż tak duża, ponieważ różnica miedzy $\theta$ i $\sigma$ także jest mniejsza ($\theta = 1, \sigma = 2$).
+\newline
+Wobec tego można postawić tezę, że druga średnia ważona jest znacznie lepszym estymatorem parametru $\sigma$ niż parametru $\theta$.
+\newline
+Wartości obciążenia były stosunkowo małe dla trzech pierwszych estymatorów (odbiegające wartości dla czwartego estymatora można uzasadnić tezą postawioną powyżej). Co do modułu najmniejsze było ono dla mediany w podpunkcie c) dla $n = 20$ oraz dla pierwszej średniej ważonej w podpunkcie b) dla $n = 20$.
+\newline
+Patrząc na ogół danych w tabeli, najlepszym estymatorem w przypadku podpunktuów a) i b) wydaje się średnia arytmetyczna. Choć jeśli dla podpunktu b) zależy nam bardziej na małej wartości obciążenia niż na pozostałych parametrów, możemy jeszcze wziąć pod uwagę zastosowanie pierwszej średniej ważonej (szczególnie dla małej liczebności prób). Podobnie w przypadku podpunktu c), z tym, że tu najmniejsze obciążenie dla małych wartości $n$ ma mediana (dla dużych prób zdecydowanie lepiej pod każdym względem wypada średnia arytmetyczna).
+\newline
+Ogólnie rzecz biorąc, wariancja i błąd średniokwadratowy maleją wraz ze wzrostem liczebności prób (za wyjątkiem drugiej średniej ważonej w podpunkcie c)), zaś obciążenie zachowuje się różnie, jednak jego wartości w obrębie różnych $n$ dla rozpatrywanych przypadków różnią się maksymalnie o jeden rząd wielkości i są stosunkowo małe.
+\newpage
+
+# Zadanie 5
+
+## Przygotowanie do obliczeń
+
+W przeciwieństwie do zadania 1, w tym przypadku nie wyliczamy estymatora $\theta$ poprzez zastosowanie podanych wzorów, a szacujemy jego wartość za pomocą metody Newtona-Rhapsona, korzystając z pierwszej i drugiej pochodnej funkcji logwiarogodności, czyli odpowiednio:
+\[
+  \makebox[\linewidth]{$l'(\theta) = \frac{n}{\sigma} - 2 \cdot \sum_{i=1}^{n} \frac{exp{\frac{-(x_i - \theta)}{\sigma}}}{\sigma \cdot (1 + exp{\frac{-(x_i - \theta)}{\sigma}})}$}
+\]
+\[
+  \makebox[\linewidth]{$l''(\theta) = -2 \cdot \sum_{i=1}^{n} \frac{exp{\frac{-(x_i - \theta)}{\sigma}}}{{\sigma^2 \cdot (1 + exp{\frac{-(x_i - \theta)}{\sigma}})}^2}$}
+\]
+Zauważmy, że przyrównując pierwszą pochodną do zera, otrzymujemy wyrażenie, które jest praktycznie nie do rozwiązania ręcznie w przypadku ogólnym. Z pomocą komputera można jednak obliczyć jego rozwiązanie numerycznie, oczywiście jedynie z pewnym przybliżeniem. Żeby się upewnić, że rzeczywiście znaleziony punkt jest właściwy, należy jeszcze sprawdzić wartość drugiej pochodnej - szukamy maksimum, zatem powinna być ona ujemna.
+\newline
+Zauważmy, że warunek ten będzie spełniony zawsze, ponieważ
+\[
+  \makebox[\linewidth]{$-2 \cdot \sum_{i=1}^{n} \frac{exp{\frac{-(x_i - \theta)}{\sigma}}}{{\sigma^2 \cdot (1 + exp{\frac{-(x_i - \theta)}{\sigma}})}^2} < 0$}
+\]
+dla każdego $\theta \in \mathbb{R}$.
+\newline
+Ustalmy dokładność na poziomie $a = 0.001$, zaś warunkiem trwania pętli w metodzie Newtona-Rhapsona przy zadanej dokładności $a$ będzie:
+\[
+  \makebox[\linewidth]{$|l'(\theta)| > a$}
+\]
+Dodatkowo ograniczmy kroki od góry przez 15.
+\newline
+Rozkład logistyczny cechuje pewne podobieństwo do rozkładu normalnego, w szczególności - podobny wygląd wykresów gęstości, w tym symetria względem wartości oczekiwanej. Zatem, na podstawie wiedzy z wykładu oraz wyników z zadania 1, jako punkt początkowy weźmy średnią arytmetyczną z próby.
+
+\newpage
+
+## Obliczenie wartości estymatora
+
+```{r zadanie5_obliczenia, eval=TRUE, echo=FALSE}
+# pierwsza pochodna
+get.mle.deriv.log  <- function(estimator, logistic.sample, sigma) {
+  length(logistic.sample)/sigma - 2 * sum( exp(-(logistic.sample - estimator)/sigma) /
+                                             (sigma*(1 + exp(-(logistic.sample - estimator)/sigma))) )
+}
+
+# druga pochodna
+get.second.mle.deriv.log <- function(estimator, logistic.sample, sigma) {
+  -2 * sum(exp(-(logistic.sample - estimator)/sigma) / (sigma*(1 + exp(-(logistic.sample - estimator)/sigma)))^2)
+}
+
+accuracy <- 0.001
+
+get.estimator.and.steps.newton.method.log <- function(logistic.sample, sigma, accuracy) {
+  steps <- 0
+  estimator <- mean(logistic.sample)
+  while(abs(get.mle.deriv.log(estimator, logistic.sample, sigma)) > accuracy) {
+    estimator <- estimator - get.mle.deriv.log(estimator, logistic.sample, sigma) / 
+      get.second.mle.deriv.log(estimator, logistic.sample, sigma)
+    steps <- steps + 1
+    if(steps > 15) {
+      break
+    }
+  }
+  return(c(estimator, steps))
+}
+  
+get.estimator.and.steps.log.df <- function(n, k, theta, sigma, accuracy) {
+  estimator.v <- c()
+  steps.v <- c()
+  for(i in 1:k) {
+    sample <- rlogis(n, theta, sigma)
+    current.estimator.and.steps.v <- get.estimator.and.steps.newton.method.log(sample, sigma, accuracy)
+    estimator.v <- c(estimator.v, current.estimator.and.steps.v[1])
+    steps.v <- c(steps.v, current.estimator.and.steps.v[2])
+  }
+  data.frame("estimator" = estimator.v, "steps" = steps.v)
+}
+
+estimator.and.steps.log.a.n.50.df <- get.estimator.and.steps.log.df(n.50, k1, theta.a, sigma.a, accuracy)
+estimator.and.steps.log.b.n.50.df <- get.estimator.and.steps.log.df(n.50, k1, theta.b, sigma.b, accuracy)
+estimator.and.steps.log.c.n.50.df <- get.estimator.and.steps.log.df(n.50, k1, theta.c, sigma.c, accuracy)
+
+estimator.and.steps.log.a.n.20.df <- get.estimator.and.steps.log.df(n.20, k1, theta.a, sigma.a, accuracy)
+estimator.and.steps.log.b.n.20.df <- get.estimator.and.steps.log.df(n.20, k1, theta.b, sigma.b, accuracy)
+estimator.and.steps.log.c.n.20.df <- get.estimator.and.steps.log.df(n.20, k1, theta.c, sigma.c, accuracy)
+
+estimator.and.steps.log.a.n.100.df <- get.estimator.and.steps.log.df(n.100, k1, theta.a, sigma.a, accuracy)
+estimator.and.steps.log.b.n.100.df <- get.estimator.and.steps.log.df(n.100, k1, theta.b, sigma.b, accuracy)
+estimator.and.steps.log.c.n.100.df <- get.estimator.and.steps.log.df(n.100, k1, theta.c, sigma.c, accuracy)
+```
+
+Wyliczone w powyższy sposób wartości estymatora parametrów $\theta$ zaprezentujmy na histogramach:
+```{r zadanie5_histogramy_estymatora, eval=TRUE, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+get.estimator.hist <- function(estimator.v, title, subtitle, x_start, x_stop) {
+   ggplot() +
+     aes(estimator.v) +
+     geom_histogram(binwidth = 0.1) +
+     xlim(c(x_start, x_stop)) +
+     labs(title = title, subtitle = subtitle,
+          x = "wartość estymatora", y = "liczba takich wyników") +
+     theme_light() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(size = 10, hjust = 0.5))
+}
+
+estimator.log.a.n.20.hist <- get.estimator.hist(estimator.and.steps.log.a.n.20.df$estimator, "podpunkt a", "n=20", -0.5, 2.5)
+estimator.log.a.n.50.hist <- get.estimator.hist(estimator.and.steps.log.a.n.50.df$estimator, "podpunkt a", "n=50", -0.5, 2.5)
+estimator.log.a.n.100.hist <- get.estimator.hist(estimator.and.steps.log.a.n.100.df$estimator, "podpunkt a", "n=100", -0.5, 2.5)
+
+estimator.log.b.n.20.hist <- get.estimator.hist(estimator.and.steps.log.b.n.20.df$estimator, "podpunkt b", "n=20", 2, 6)
+estimator.log.b.n.50.hist <- get.estimator.hist(estimator.and.steps.log.b.n.50.df$estimator, "podpunkt b", "n=50", 2, 6)
+estimator.log.b.n.100.hist <- get.estimator.hist(estimator.and.steps.log.b.n.100.df$estimator, "podpunkt b", "n=100", 2, 6)
+
+estimator.log.c.n.20.hist <- get.estimator.hist(estimator.and.steps.log.c.n.20.df$estimator, "podpunkt c", "n=20", -2.5, 4)
+estimator.log.c.n.50.hist <- get.estimator.hist(estimator.and.steps.log.c.n.50.df$estimator, "podpunkt c", "n=50", -2.5, 4)
+estimator.log.c.n.100.hist <- get.estimator.hist(estimator.and.steps.log.c.n.100.df$estimator, "podpunkt c", "n=100", -2.5, 4)
+
+grid.arrange(estimator.log.a.n.20.hist, estimator.log.a.n.50.hist, estimator.log.a.n.100.hist,
+             estimator.log.b.n.20.hist, estimator.log.b.n.50.hist, estimator.log.b.n.100.hist,
+             estimator.log.c.n.20.hist, estimator.log.c.n.50.hist, estimator.log.c.n.100.hist,
+             ncol=3, top = "Histogramy wartości estymatora")
+
+```
+
+### Wnioski
+
+Zauważalną różnicą jest ta w szerokości histogramów dla poszczególnych wartości $n$ - rozpiętość słupków maleje bardzo szybko wraz ze wzrostem liczebności próby. Im większe $n$, tym więcej estymatorów ma wartości bliskie prawdziwej wartości parametru $\theta$. 
+\newline
+Warto natomiast zwrócić uwagę na fakt, że nawet dla najmniejszego $n = 20$ wartości ENW obliczonego przez algorytm układały się w przybliżeniu w kształt funkcji gęstości rozkładu normalnego wokół prawdziwej wartości $\theta$.
+
+## Oszacowanie wariancji, błędu średniokwadratowego oraz obciążenia estymatora
+
+```{r zadanie5_tabelka_estymator, eval=TRUE, echo=FALSE}
+# a
+estimator.log.stats.a.n.20.v <- rows.values.v(estimator.and.steps.log.a.n.20.df$estimator, theta.a)
+estimator.log.stats.a.n.50.v <- rows.values.v(estimator.and.steps.log.a.n.50.df$estimator, theta.a)
+estimator.log.stats.a.n.100.v <- rows.values.v(estimator.and.steps.log.a.n.100.df$estimator, theta.a)
+
+# b
+estimator.log.stats.b.n.20.v <- rows.values.v(estimator.and.steps.log.b.n.20.df$estimator, theta.b)
+estimator.log.stats.b.n.50.v <- rows.values.v(estimator.and.steps.log.b.n.50.df$estimator, theta.b)
+estimator.log.stats.b.n.100.v <- rows.values.v(estimator.and.steps.log.b.n.100.df$estimator, theta.b)
+
+# c
+estimator.log.stats.c.n.20.v <- rows.values.v(estimator.and.steps.log.c.n.20.df$estimator, theta.c)
+estimator.log.stats.c.n.50.v <- rows.values.v(estimator.and.steps.log.c.n.50.df$estimator, theta.c)
+estimator.log.stats.c.n.100.v <- rows.values.v(estimator.and.steps.log.c.n.100.df$estimator, theta.c)
+
+
+frame.estimator <- data.frame(rownames.v, estimator.log.stats.a.n.20.v, estimator.log.stats.a.n.50.v,
+                         estimator.log.stats.a.n.100.v, estimator.log.stats.b.n.20.v,
+                         estimator.log.stats.b.n.50.v, estimator.log.stats.b.n.100.v,
+                         estimator.log.stats.c.n.20.v, estimator.log.stats.c.n.50.v,
+                         estimator.log.stats.a.n.100.v)
+
+colnames.v <- c("n", rep(c("20", "50", "100"), 3))
+colnames(frame.estimator) = colnames.v
+
+kbl(frame.estimator, caption = "Estymator największej wiarogodności dla rozkładu logistycznego") %>%
+  kable_styling(latex_options = "H") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+### Wnioski
+
+Dla $n = 20$ i $n = 50$ wariancja i błąd średniokwadratowy były zdecydowanie największe w przypadku podpunktu c), czyli rozkładu logistycznego o parametrach $\theta = 1, \sigma = 2$. Natomiast dla $n = 100$ różnice były już niemal niezauważalne, a same wartości tych statystyk - bardzo małe. Można zatem postawić tezę, że w przypadku przypuszczenia, że dane pochodzą z rozkładu o większym odchyleniu standardowym, należy wziąć do badań próbę o większej liczebności.
+\newline
+Obciążenie nie było duże dla żadnego z rozpatrywanych rozkładów. Największą wartość co do modułu osiągnęło dla podpunktu a) przy pięćdziesięcioelementowej próbie, ale wciąż była to wielkość rzędu zaledwie jednej tysięcznej.
+\newline
+Podobnie jak w zadaniu 1, i tutaj wariancja i błąd średniokwadratowy malały wraz ze wzrostem $n$, natomiast obciążenie zachowywało się różnie.
+\newline
+Warto wspomnieć, że na szacunkowe wartości wariancji, błędu średniokwadratowego oraz obciążenia z pewnością wpłynęła wybrana na początku dokładność.
+
+## Analiza liczby kroków w algorytmie
+
+```{r zadanie5_histogramy_krokow, eval=TRUE, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+
+get.log.steps.hist <- function(steps.v, title, subtitle) {
+   ggplot() +
+     aes(steps.v) +
+     geom_histogram(binwidth = 1) +
+      xlim(c(0, 3)) +
+     labs(title = title, subtitle = subtitle,
+          x = "liczba kroków", y = "liczba takich wyników") +
+     theme_light() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(size = 10, hjust = 0.5))
+}
+
+steps.log.a.n.20.hist <- get.log.steps.hist(estimator.and.steps.log.a.n.20.df$steps, "podpunkt a", "n=20")
+steps.log.a.n.50.hist <- get.log.steps.hist(estimator.and.steps.log.a.n.50.df$steps, "podpunkt a", "n=50")
+steps.log.a.n.100.hist <- get.log.steps.hist(estimator.and.steps.log.a.n.100.df$steps, "podpunkt a", "n=100")
+
+steps.log.b.n.20.hist <- get.log.steps.hist(estimator.and.steps.log.b.n.20.df$steps, "podpunkt b", "n=20")
+steps.log.b.n.50.hist <- get.log.steps.hist(estimator.and.steps.log.b.n.50.df$steps, "podpunkt b", "n=50")
+steps.log.b.n.100.hist <- get.log.steps.hist(estimator.and.steps.log.b.n.100.df$steps, "podpunkt b", "n=100")
+
+steps.log.c.n.20.hist <- get.log.steps.hist(estimator.and.steps.log.c.n.20.df$steps, "podpunkt c", "n=20")
+steps.log.c.n.50.hist <- get.log.steps.hist(estimator.and.steps.log.c.n.50.df$steps, "podpunkt c", "n=50")
+steps.log.c.n.100.hist <- get.log.steps.hist(estimator.and.steps.log.c.n.100.df$steps, "podpunkt c", "n=100")
+
+grid.arrange(steps.log.a.n.20.hist, steps.log.a.n.50.hist, steps.log.a.n.100.hist,
+             steps.log.b.n.20.hist, steps.log.b.n.50.hist, steps.log.b.n.100.hist,
+             steps.log.c.n.20.hist, steps.log.c.n.50.hist, steps.log.c.n.100.hist,
+             ncol=3, top = "Histogramy liczby kroków")
+```
+
+Im większa wartość $n$, tym średnio mniej kroków potrzebował algorytm, żeby osiągnąć zadaną dokładność $a = 0.001$. Natomiast w każdym przypadku liczba kroków wynosiła 1 lub 2, co wskazuje na to, że wybór średniej arytmetycznej jako punktu początkowego był dobry. Stosunkowo najmniej obrotów pętli potrzebne było w podpunkcie c) (dla dowolnego $n$), jednakże warto zauważyć, że to właśnie tam dla $n = 20$ i $n = 50$ wariancja i błąd średniokwadratowy były największe.
+\newline
+Podsumowując, w przypadku rozkładu logistycznego liczenie ENW metodą Newtona-Rhapsona przy wyborze średniej arytmetycznej z próby jako punktu początkowego wydaje się uzasadnione i sensowne.
+
+
+
+
+
+
+# Zadanie 6
+
+## Przygotowanie do obliczeń
+
+Analogicznie jak w zadaniu 5, użyjemy tu metody Newtona-Rhapsona, korzystając z pierwszej i drugiej pochodnej funkcji logwiarogodności, czyli odpowiednio:
+\[
+  \makebox[\linewidth]{$l'(\theta) = 2 \cdot \sum_{i=1}^{n} \frac{x_i - \theta}{\sigma^2 + {(x_i-\theta)}^2} $}
+\]
+\[
+  \makebox[\linewidth]{$l''(\theta) = 2 \cdot \sum_{i=1}^{n} \frac{-\sigma^2 + (x_i - \theta)^2}{(\sigma^2 + {(x_i-\theta)}^2)^2}$}
+\]
+I tu przyrównując pierwszą pochodną do zera, znowu otrzymujemy wyrażenie, które jest praktycznie nie do rozwiązania ręcznie w przypadku ogólnym. Natomiast dla rozkładu Cauchy'ego nie dla każdej wartości $\theta$ druga pochodna będzie ujemna, w związku z tym może zdarzyć się sytuacja, gdzie algorytm trafi nie w minimum, którego szukamy, a w maksimum. W związku z tym musimy dokonać pewnych zmian.
+\newline
+Dokładność, warunek trwania pętli i ograniczenie pozostawmy bez zmian. Dodatkowo będziemy jednak musieli sprawdzać znak drugiej pochodnej. Jako porządane weźmiemy pod uwagę jedynie te wyniki, gdzie druga pochodna będzie ujemna, zaś wartość estymatora nie będzie rozbiegała.
+\newline
+Podobnie jak z rozkładem logistycznym i normalnym, rozkład Cauchy'ego cechuje pewne podobieństwo do rozkładu Laplace'a. Ponieważ ENW dla rozkładu Laplace'a jest mediana, weźmiemy ją w tym przypadku jako punkt wyjścia dla metody Newtona-Rhapsona.
+
+\newpage
+
+## Obliczenie wartości estymatora
+
+```{r zadanie6_obliczenia, eval=TRUE, echo=FALSE}
+# pierwsza pochodna
+get.mle.deriv.cauchy  <- function(estimator, cauchy.sample, sigma) {
+  2 * sum((cauchy.sample - estimator)/(sigma^2 + (cauchy.sample-estimator)^2))
+}
+
+# druga pochodna
+get.second.mle.deriv.cauchy <- function(estimator, cauchy.sample, sigma) {
+  2 * sum((-sigma^2+(cauchy.sample-estimator)^2)/(sigma^2+(cauchy.sample-estimator)^2)^2)
+}
+
+accuracy <- 0.001
+
+get.estimator.and.steps.newton.method.cauchy <- function(cauchy.sample, sigma, accuracy) {
+  steps <- 0
+  estimator <- median(cauchy.sample)
+  mle.deriv.cauchy <- 0
+  second.mle.deriv.cauchy <- 0
+  while(abs(get.mle.deriv.cauchy(estimator, cauchy.sample, sigma)) > accuracy) {
+    mle.deriv.cauchy <- get.mle.deriv.cauchy(estimator, cauchy.sample, sigma)
+    second.mle.deriv.cauchy <- get.second.mle.deriv.cauchy(estimator, cauchy.sample, sigma)
+    estimator <- estimator - mle.deriv.cauchy / second.mle.deriv.cauchy
+    steps <- steps + 1
+    if(steps > 15) {
+      break
+    }
+  }
+  return(c(estimator, steps, second.mle.deriv.cauchy))
+}
+  
+get.estimator.and.steps.cauchy.df <- function(n, k, theta, sigma, accuracy) {
+  estimator.v <- c()
+  steps.v <- c()
+  for(i in 1:k) {
+    sample <- rcauchy(n, theta, sigma)
+    current.estimator.and.steps.v <- get.estimator.and.steps.newton.method.cauchy(sample, sigma, accuracy)
+    if (current.estimator.and.steps.v[3] < 0 & current.estimator.and.steps.v[3] < 15) {
+        estimator.v <- c(estimator.v, current.estimator.and.steps.v[1])
+        steps.v <- c(steps.v, current.estimator.and.steps.v[2])
+    }
+  }
+  data.frame("estimator" = estimator.v, "steps" = steps.v)
+}
+
+estimator.and.steps.cauchy.a.n.50.df <- get.estimator.and.steps.cauchy.df(n.50, k1, theta.a, sigma.a, accuracy)
+estimator.and.steps.cauchy.b.n.50.df <- get.estimator.and.steps.cauchy.df(n.50, k1, theta.b, sigma.b, accuracy)
+estimator.and.steps.cauchy.c.n.50.df <- get.estimator.and.steps.cauchy.df(n.50, k1, theta.c, sigma.c, accuracy)
+
+estimator.and.steps.cauchy.a.n.20.df <- get.estimator.and.steps.cauchy.df(n.20, k1, theta.a, sigma.a, accuracy)
+estimator.and.steps.cauchy.b.n.20.df <- get.estimator.and.steps.cauchy.df(n.20, k1, theta.b, sigma.b, accuracy)
+estimator.and.steps.cauchy.c.n.20.df <- get.estimator.and.steps.cauchy.df(n.20, k1, theta.c, sigma.c, accuracy)
+
+estimator.and.steps.cauchy.a.n.100.df <- get.estimator.and.steps.cauchy.df(n.100, k1, theta.a, sigma.a, accuracy)
+estimator.and.steps.cauchy.b.n.100.df <- get.estimator.and.steps.cauchy.df(n.100, k1, theta.b, sigma.b, accuracy)
+estimator.and.steps.cauchy.c.n.100.df <- get.estimator.and.steps.cauchy.df(n.100, k1, theta.c, sigma.c, accuracy)
+```
+
+W tabeli przedstawiono, ile z wyników spełniło założone wcześniej warunki:
+```{r zadanie6_tabelka_dobre_wyniki, eval=TRUE, echo=FALSE}
+rownames2.v <- c("liczba wyników")
+
+frame.results <- data.frame(rownames2.v, nrow(estimator.and.steps.cauchy.a.n.20.df), nrow(estimator.and.steps.cauchy.a.n.50.df),
+                       nrow(estimator.and.steps.cauchy.a.n.100.df), nrow(estimator.and.steps.cauchy.b.n.20.df),
+                       nrow(estimator.and.steps.cauchy.b.n.50.df), nrow(estimator.and.steps.cauchy.b.n.100.df),
+                       nrow(estimator.and.steps.cauchy.c.n.20.df), nrow(estimator.and.steps.cauchy.c.n.50.df),
+                       nrow(estimator.and.steps.cauchy.c.n.100.df))
+
+colnames.v <- c("n", rep(c("20", "50", "100"), 3))
+colnames(frame.results) = colnames.v
+
+kbl(frame.results, caption = "Liczba wartości estymatora spełniających warunki") %>%
+  kable_styling(latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+
+Wartości zgodne z założeniami zaprezentujmy na histogramach:
+```{r zadanie6_histogramy_estymatora, eval=TRUE, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+estimator.cauchy.a.n.20.hist <- get.estimator.hist(estimator.and.steps.cauchy.a.n.20.df$estimator, "podpunkt a", "n=20", -1, 2.5)
+estimator.cauchy.a.n.50.hist <- get.estimator.hist(estimator.and.steps.cauchy.a.n.50.df$estimator, "podpunkt a", "n=50", -1, 2.5)
+estimator.cauchy.a.n.100.hist <- get.estimator.hist(estimator.and.steps.cauchy.a.n.100.df$estimator, "podpunkt a", "n=100", -1, 2.5)
+
+estimator.cauchy.b.n.20.hist <- get.estimator.hist(estimator.and.steps.cauchy.b.n.20.df$estimator, "podpunkt b", "n=20", 2, 6)
+estimator.cauchy.b.n.50.hist <- get.estimator.hist(estimator.and.steps.cauchy.b.n.50.df$estimator, "podpunkt b", "n=50", 2, 6)
+estimator.cauchy.b.n.100.hist <- get.estimator.hist(estimator.and.steps.cauchy.b.n.100.df$estimator, "podpunkt b", "n=100", 2, 6)
+
+estimator.cauchy.c.n.20.hist <- get.estimator.hist(estimator.and.steps.cauchy.c.n.20.df$estimator, "podpunkt c", "n=20", -3, 4.5)
+estimator.cauchy.c.n.50.hist <- get.estimator.hist(estimator.and.steps.cauchy.c.n.50.df$estimator, "podpunkt c", "n=50", -3, 4.5)
+estimator.cauchy.c.n.100.hist <- get.estimator.hist(estimator.and.steps.cauchy.c.n.100.df$estimator, "podpunkt c", "n=100", -3, 4.5)
+
+grid.arrange(estimator.cauchy.a.n.20.hist, estimator.cauchy.a.n.50.hist, estimator.cauchy.a.n.100.hist,
+             estimator.cauchy.b.n.20.hist, estimator.cauchy.b.n.50.hist, estimator.cauchy.b.n.100.hist,
+             estimator.cauchy.c.n.20.hist, estimator.cauchy.c.n.50.hist, estimator.cauchy.c.n.100.hist,
+             ncol=3, top = "Histogramy wartości estymatora")
+
+```
+
+### Wnioski
+
+Zdecydowanie najwięcej wartości było minimum zamiast maksimum lub rozbiegało dla $n =20$, jednak i tu najgorszym wynikiem jest 35 usuniętych wartości. Dla $n = 50$ i $n = 100$ niepasujące okazały się zaledwie pojedyczne przypadki.
+\newline
+Podobnie jak dla rozkładu logistycznego, i tu histogramy wraz ze wzrostem $n$ robią się coraz węższe, zaś ich środki znajdują się w prawdziwych wartościach $\theta$. Warto jednak zaznaczyć, że dla tego rozkładu histogramy mają nieco lżejsze ogony, szczególnie dla $n = 20$. Może to mieć jednak związek z usunięciem rozbiegających wartości.
+
+## Oszacowanie wariancji, błędu średniokwadratowego oraz obciążenia estymatora
+```{r zadanie6_tabelka_estymator, eval=TRUE, echo=FALSE}
+# a
+estimator.cauchy.stats.a.n.20.v <- rows.values.v(estimator.and.steps.cauchy.a.n.20.df$estimator, theta.a)
+estimator.cauchy.stats.a.n.50.v <- rows.values.v(estimator.and.steps.cauchy.a.n.50.df$estimator, theta.a)
+estimator.cauchy.stats.a.n.100.v <- rows.values.v(estimator.and.steps.cauchy.a.n.100.df$estimator, theta.a)
+
+# b
+estimator.cauchy.stats.b.n.20.v <- rows.values.v(estimator.and.steps.cauchy.b.n.20.df$estimator, theta.b)
+estimator.cauchy.stats.b.n.50.v <- rows.values.v(estimator.and.steps.cauchy.b.n.50.df$estimator, theta.b)
+estimator.cauchy.stats.b.n.100.v <- rows.values.v(estimator.and.steps.cauchy.b.n.100.df$estimator, theta.b)
+
+# c
+estimator.cauchy.stats.c.n.20.v <- rows.values.v(estimator.and.steps.cauchy.c.n.20.df$estimator, theta.c)
+estimator.cauchy.stats.c.n.50.v <- rows.values.v(estimator.and.steps.cauchy.c.n.50.df$estimator, theta.c)
+estimator.cauchy.stats.c.n.100.v <- rows.values.v(estimator.and.steps.cauchy.c.n.100.df$estimator, theta.c)
+
+
+frame.cauchy.estimator <- data.frame(rownames.v, estimator.cauchy.stats.a.n.20.v, estimator.cauchy.stats.a.n.50.v,
+                         estimator.cauchy.stats.a.n.100.v, estimator.cauchy.stats.b.n.20.v,
+                         estimator.cauchy.stats.b.n.50.v, estimator.cauchy.stats.b.n.100.v,
+                         estimator.cauchy.stats.c.n.20.v, estimator.cauchy.stats.c.n.50.v,
+                         estimator.cauchy.stats.a.n.100.v)
+
+colnames.v <- c("n", rep(c("20", "50", "100"), 3))
+colnames(frame.cauchy.estimator) = colnames.v
+
+kbl(frame.cauchy.estimator, caption = "Estymator największej wiarogodności dla rozkładu Cauchy'ego") %>%
+  kable_styling(latex_options = "H") %>%
+  add_header_above(c(" " = 1, "a" = 3, "b" = 3, "c" = 3))
+```
+
+### Wnioski
+
+Podobnie jak w zadaniu 5, przy $n = 20$ i $n = 50$ wariancja i błąd średniokwadratowy były zdecydowanie największe w przypadku podpunktu c), czyli rozkładu o parametrach $\theta = 1, \sigma = 2$. Natomiast dla $n = 100$ różnice i wartości tych statystyk były jeszcze mniejsze niż dla rozkładu logistycznego. Zatem można tu postawić analogiczną tezę, iż w przypadku przypuszczenia, że dane pochodzą z rozkładu o większym odchyleniu standardowym, należy wziąć do badań próbę o większej liczebności.
+\newline
+Obciążenie nie było duże dla żadnego z rozpatrywanych rozkładów. Największą wartość co do modułu osiągnęło dla podpunktu c) przy dwudziestoelementowej próbie.
+\newline
+Podobnie jak w poprzednich zadaniach, i tutaj wariancja i błąd średniokwadratowy malały wraz ze wzrostem $n$, natomiast dla obciążenia nie widać takiej prawidłowości, choć warto zaznaczyć, że jest ono większe o rząd wielkości dla $n = 20$.
+Warto także wspomnieć, że, jak w zadaniu 5, na szacunkowe wartości wariancji, błędu średniokwadratowego oraz obciążenia z pewnością wpłynęła wybrana na początku dokładność. Byłyby też one o wiele większe, gdyby uwzględnić rozbiegające wyniki.
+
+## Analiza liczby kroków w algorytmie
+
+```{r zadanie6_histogramy_krokow, eval=TRUE, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+
+get.cauchy.steps.hist <- function(steps.v, title, subtitle) {
+   ggplot() +
+     aes(steps.v) +
+     geom_histogram(binwidth = 1) +
+      xlim(c(0, 5)) +
+     labs(title = title, subtitle = subtitle,
+          x = "liczba kroków", y = "liczba takich wyników") +
+     theme_light() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(size = 10, hjust = 0.5))
+}
+
+steps.cauchy.a.n.20.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.a.n.20.df$steps, "podpunkt a", "n=20")
+steps.cauchy.a.n.50.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.a.n.50.df$steps, "podpunkt a", "n=50")
+steps.cauchy.a.n.100.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.a.n.100.df$steps, "podpunkt a", "n=100")
+
+steps.cauchy.b.n.20.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.b.n.20.df$steps, "podpunkt b", "n=20")
+steps.cauchy.b.n.50.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.b.n.50.df$steps, "podpunkt b", "n=50")
+steps.cauchy.b.n.100.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.b.n.100.df$steps, "podpunkt b", "n=100")
+
+steps.cauchy.c.n.20.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.c.n.20.df$steps, "podpunkt c", "n=20")
+steps.cauchy.c.n.50.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.c.n.50.df$steps, "podpunkt c", "n=50")
+steps.cauchy.c.n.100.hist <- get.cauchy.steps.hist(estimator.and.steps.cauchy.c.n.100.df$steps, "podpunkt c", "n=100")
+
+grid.arrange(steps.cauchy.a.n.20.hist, steps.cauchy.a.n.50.hist, steps.cauchy.a.n.100.hist,
+             steps.cauchy.b.n.20.hist, steps.cauchy.b.n.50.hist, steps.cauchy.b.n.100.hist,
+             steps.cauchy.c.n.20.hist, steps.cauchy.c.n.50.hist, steps.cauchy.c.n.100.hist,
+             ncol=3, top = "Histogramy liczby kroków")
+```
+
+### Wnioski
+
+Jeśli liczony estymator był zbieżny, zbiegał stosunkowo szybko, choć nieco wolniej niż dla rozkładu logistycznego - w zdecydowanej większości przypadków liczba obrotów pętli wynosiła 2. Maksymalna wartość to 4 kroki, ale są to pojedyncze przypadki.
+\newline
+Liczba kroków potrzebnych do uzyskania porządanego wyniku malała wraz ze wzrostem $n$, jednak nie tak szybko jak w przypadku rozkładu logistycznego. I tu średnio najmniej kroków potrzeba było w podpunkcie c), jednak dla tego rozkładu wariancja, błąd średniokwadratowy, a także obciążenie były średnio największe (poza obciążeniem dla $n = 100$). Zatem, choć rozwiązanie da się uzyskać w tym przypadku szybciej, jest ono nieco mniej dokładne.
+\newline
+Podsumowując, w przypadku rozkładu Cauchy'ego liczenie ENW metodą Newtona-Rhapsona przy wyborze mediany z próby jako punktu początkowego wydaje się dobrym rozwiązaniem.
+
