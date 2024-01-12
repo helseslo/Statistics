@@ -1,0 +1,603 @@
+---
+title: "Statystyka: raport 2"
+author: "Helena Sękowska-Słoka, nr indeksu 321531"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+toc-title: "SPIS TREŚCI"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning = FALSE)
+Sys.setlocale("LC_ALL", "pl_PL.UTF-8")
+options(encoding = "UTF-8")
+
+```
+
+```{r biblioteki, eval=TRUE, message=FALSE, echo=FALSE}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library("gridExtra") 
+library(scales)
+library(matrixStats)
+library(data.table)
+library(VGAM)
+```
+
+\newpage
+
+```{r setseed, eval=TRUE, message=FALSE, echo=FALSE}
+set.seed(416)
+```
+
+# Estymacja wielkości $P(3 \leq X)$ dla rozkładu dwumianowego $b(5, p)$ metodą największej wiarogodności
+
+## Wyznaczanie ENW dla $P(3 \leq X)$
+
+Wiemy, że estymatorem największej wiarogodności dla parametru $p$ z rozkładu dwumianowego o liczbie prób $n = 5$ jest $\frac{\bar{X}}{5}$. 
+Zauważmy, że chcąc wyestymować metodą największej wiarogodności wielkość $P(3 \leq X)$ znanymi nam na ten moment z wykładu metodami, musimy najpierw przekształcić ją do postaci funkcji $g(p)$. Skorzystajmy z tego, że zachodzą następujące równości:
+$$P(3 \leq X) = 1-P(X \in \{0, 1, 2\}) =  1 - \left( {5\choose 0}p^0(1-p)^{5-0}  + {5\choose 1}p^1(1-p)^{5-1} + {5\choose 2}p^2(1-p)^{5-2} \right)$$
+Niech zatem
+$$1 - \left( {5\choose 0}p^0(1-p)^{5-0}  + {5\choose 1}p^1(1-p)^{5-1} + {5\choose 2}p^2(1-p)^{5-2} \right)= g(p)$$
+Dzięki temu przy wyznaczaniu estymatora największej wiarogodności wielkości $P(3 \leq X)$ możemy skorzystać z twierdzenia 6.1.2 z podręcznika \textit{Introduction to Mathematical Statistics}, którego autorami są Robert Hogg, Joseph McKean i Allen Craig. Mówi ono, że jeśli $P(3 \leq X) = g(p)$, zaś $\frac{\bar{x}}{5}$ jest ENW dla $p$, to ENW dla $P(3 \leq X)$ będzie $g(\frac{\bar{x}}{5})$.
+\newline
+Po wyznaczeniu tego estymatora oszacowujemy jego wariancję, błąd średniokwadratowy oraz obciążenie.
+
+## Wykres z oszacowaniem wariancji, błędu średniokwadratowego oraz obciążenia wyznaczonego estymatora w zależności od parametru $p$
+
+```{r zad1, eval=TRUE, message=FALSE, echo=FALSE}
+ps = seq(0.1, 0.9, by=0.2)
+ns = c(20, 50, 100)
+
+simulation_result <- lapply(ps, function(p){
+  lapply(ns, function(n){
+    lapply(1:1e4, function(i){
+      p_mle <- sum(rbinom(n, 5, p)/(5 * n))
+      prob_mle <- 1 - pbinom(2, 5, p_mle)
+      list(true_p = p, 
+           sample_size = n,
+           iter = i,
+           true_prob = 1 - pbinom(2, 5, p),
+           estimated_prob = prob_mle)
+    })
+  })
+})
+
+sim_dt = unlist(unlist(simulation_result, F, F), F, F)
+sim_dt = data.table::rbindlist(sim_dt)
+
+ggplot(melt(sim_dt[, .(Bias = mean(estimated_prob - true_prob),
+                       Var = var(estimated_prob),
+                       MSE = mean((estimated_prob - true_prob)^2)),
+                   by = c("true_p", "sample_size")],
+            id.vars = c("true_p", "sample_size")),
+       aes(x = reorder(as.character(true_p), true_p), y = value, 
+           color = reorder(as.character(sample_size), sample_size))) +
+  geom_point(size = 3) +
+  facet_grid(~variable) +
+  theme_bw() +
+  scale_color_discrete(name = "rozmiar próby") +
+  theme(legend.position = "bottom") +
+  xlab("prawdziwa wartość prawdopodobieństwa") +
+  ylab("estymator")
+```
+
+Wszystkie wartości na wykresie są stosunkowo małe, rzędu $10^{-3}$. Jak można było przypuszczać, największe co do modułu są one dla prób rozmiaru 20. 
+\newline
+Obciążenie jest co do modułu symetryczne względem $p = 0.5$, przy czym największe jest dla $p = 0.3$ i $p = 0.7$. Symetryczne wzdłuż tej samej osi są także wariancja i błąd średniokwadratowy, przy czym tutaj największe są wartości dla $p = 0.5$ i maleją one w kierunku do wartości skrajnych. 
+Różnice między obciążeniami  nimi są tym mniejsze, im bliżej jesteśmy skrajnych wartości $p$ ($p = 0.1$ i $p = 0.9$).
+
+Ogólnie rzecz biorąc znaleziony estymator największej wiarogodności jest bardzo dobrym estymatorem, a najlepsze wyniki uzyskamy dla skrajnych wartości $p$.
+
+\newpage
+
+# Estymacja wielkości $P(X=x)$ dla rozkładu Poissona $P(\lambda)$ metodą największej wiarogodności
+
+## Wyznaczanie ENW dla $P(X=x)$
+
+Skorzystamy z tego samego twierdzenia, w którym korzystaliśmy w poprzednim zadaniu. Wiemy, że ENW parametru $\lambda$ to $\bar{X}$, zaś $P(X=x) = \frac{e^{-\lambda}\lambda^x}{x!}$, wobec tego estymatorem największej wiarogodności dla wielkości $P(X=x)$ będzie $\frac{e^{-\bar{X}}\bar{X}^x}{x!}$.
+
+## Wykres z oszacowaniem wariancji, błędu średniokwadratowego oraz obciążenia wyznaczonego estymatora w zależności od parametru $x$
+
+```{r zad2, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=6, fig.width=9}
+ls = c(0.5, 1, 2, 5)
+ns = c(20, 50, 100)
+
+
+simulation_result <-lapply(ls, function(lambda){
+  lapply(ns, function(n){
+    lapply(1:1e4, function(i){
+      # lambda.hat
+      lambda_mle <- sum(rpois(n, lambda)/n)
+      list(true_lambda = lambda, 
+           sample_size = n,
+           iter = i,
+           x = 0:10, 
+           # prawdziwe P
+           true_prob = dpois(0:10, lambda),
+           estimated_prob = dpois(0:10, lambda_mle))
+    })
+  })
+})
+
+
+sim_dt = unlist(unlist(simulation_result, F, F), F, F)
+sim_dt = data.table::rbindlist(sim_dt)
+
+# wykres Bias
+
+
+summaries = sim_dt[, .(Bias = mean(estimated_prob - true_prob),
+                       Var = var(estimated_prob),
+                       MSE = mean((estimated_prob - true_prob)^2)),
+                   by = c("true_lambda", "sample_size", "x")]
+
+true_lambda = c("0.5", "1", "2", "5")
+labs = paste0("Poisson(", true_lambda, ")")
+
+ggplot(summaries,
+       aes(x = reorder(as.character(x), x), y = Bias, 
+           color = reorder(as.character(sample_size), sample_size))) +
+  geom_point(size = 3) +
+  facet_wrap(~true_lambda, labeller = as_labeller(setNames(labs, true_lambda)), ncol=4) +
+  theme_bw() +
+  scale_color_discrete(name = "rozmiar próby") +
+  theme(legend.position = "bottom") +
+  xlab("x") +
+  ylab("Obciążenie")
+
+
+# wykres MSE
+
+ggplot(summaries,
+       aes(x = reorder(as.character(x), x), y = MSE, 
+           color = reorder(as.character(sample_size), sample_size))) +
+  geom_point(size = 3) +
+  facet_wrap(~true_lambda, labeller = as_labeller(setNames(labs, true_lambda)), ncol=4) +
+  theme_bw() +
+  scale_color_discrete(name = "rozmiar próby") +
+  theme(legend.position = "bottom") +
+  xlab("x") +
+  ylab("Błąd średniokwadratowy")
+
+# wykres Var
+
+ggplot(summaries,
+       aes(x = reorder(as.character(x), x), y = Var, 
+           color = reorder(as.character(sample_size), sample_size))) +
+  geom_point(size = 3) +
+  facet_wrap(~true_lambda, labeller = as_labeller(setNames(labs, true_lambda)), ncol=4) +
+  theme_bw() +
+  scale_color_discrete(name = "rozmiar próby") +
+  theme(legend.position = "bottom") +
+  xlab("x") +
+  ylab("Wariancja")
+
+```
+
+Podobnie jak w poprzednim zadaniu, wszystkie wartości są stosunkowo małe, a nawet tego samego rzędu ($10^{-3}$). Również po raz kolejny obciążenie ma nieco inną strukturę niż wariancja i błąd średniokwadratowy. Dla $\lambda \in \{0.5, 1\}$ wszystkie trzy rodzaje niedokładności estymatora maleją co do modułu wraz ze wzrostem $x$. Jednak dla $\lambda = 2$ MSE i wariancja są małe w okolicach 2, a potem znowu rosną i ostatecznie maleją, natomiast przy obciążeniu nie widać takiej prawidłowości. Zaś dla $\lambda = 5$ wariancja i błąd średniokwadratowy odnotowują najniższe wartości dla $x \in \{1, 5, 10\}$, natomiast obciążenie w przypadku $x = 5$ co do modułu osiąga wartość najwyższą.
+\newline
+Dla mniejszych $x$ widać również zdecydowanie większe różnice we wszystkich trzech wartościach, patrząc względem rozmiaru próby.
+\newline
+Podsumowując, jeśli $x$ sporo większe lub sporo mniejsze niż $\lambda+3$, wielkość rozpatrywanej przez nas próby ma drugorzędne znaczenie (im $x$ większe, tym lepiej). Natomiast jeśli $x$ jest bliskie $\lambda$ (w szczególności trochę mniejsze od niej), lepiej wypadają zbiory o większych rozmiarach.
+\newline
+Widoczne podobieństwo między rozkładem dwumianowym a rozkładem Poissona wykorzystuje się przy oszacowywaniu tego pierwszego (łatwiej policzyć wyrażenie bez silni). Jednak przybliżenie takie stosuje się dla pojedynczej próby rozmiaru $n > 5$, także tutaj nie było ono możliwe do zastosowania (w tym przypadku liczebność wynosiła dokładnie 5).
+
+\newpage
+
+# Analiza rozkładu zmiennej $Y = \sqrt{n\hat{I(\theta)}}(\hat{\theta}-\theta)$ wyznaczonej na podstawie estymacji informacji Fishera $I(\theta)$ dla rozkładu $beta(\theta, 1)$
+
+## Wyznaczanie ENW informacji Fishera $I(\theta)$ dla rozkładu $beta(\theta, 1)$
+
+Analogicznie jak w poprzednich zadaniach, korzystamy z twierdzenia 6.1.2. Wiemy, że informacja Fishera dla parametru $\theta$ w przypadku rozkładu beta to $I(\theta) = \frac{1}{\theta^2}$. Z kolei ENW parametru $\theta$ to $\frac{-n}{\sum_{i=1}^{n} \log(X_i)}$, gdzie $X_i$ są kolejnymi obserwacjami w próbie. W związku z tym ENW dla informacji Fishera będzie w tym przypadku $\frac{1}{ ( \frac{-n}{\sum_{i=1}^{n} \log(X_i)})^2}$.
+\newline
+
+## Definiowanie nowej zmiennej $Y = \sqrt{n\hat{I(\theta)}}(\hat{\theta}-\theta)$ i analiza jej rozkładu
+
+Definiujemy na tej podstawie nową zmienną $Y = \sqrt{n\hat{I(\theta)}}(\hat{\theta}-\theta)$. Chcąc zbadać jej rozkład, przyjrzyjmy się jej histogramom oraz wykresom kwantylowo-kwantylowym.
+\newline
+Ponieważ wartości $Y$ znajdują się mniej więcej w przedziale (-4, 4), a wykresy będziemy umieszczać na planszy 4 na 3, zatem zbyt dużo klas na histogramie (np. domyślne 30) zaburzy odbiór wizualny, ustalmy szerokość kubełka równą $0.5$ (co daje ok. 15 kubełków).
+\newline
+Pozostaje jeszcze wyznaczyć kwantyle teoretyczne do wykresu kwantylowo-kwantylowego. Skorzystamy z twierdzenia 6.3.1, zgodnie z którym, ponieważ $0 < I(\theta) < +\infty$, zachodzi
+$$\sqrt{n} (\hat{\theta_n}- \theta) \xrightarrow{D} N(0, \frac{1}{I(\theta)})$$
+Z czego wynika, że 
+$$\sqrt{n\hat{I(\theta)}} (\hat{\theta_n}- \theta) \xrightarrow{D} N(0, \frac{1}{I(\theta)} \cdot \sqrt{I(\theta)}^2)$$
+Czyli, ostatecznie
+$$\sqrt{n\hat{I(\theta)}} (\hat{\theta_n}- \theta) \xrightarrow{D} N(0, 1)$$
+Wobec tego kwantylami teoretycznymi będą kwantyle z rozkładu normalnego $N(0, 1)$.
+
+```{r zad3, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=9, fig.height=6}
+# n = 50,
+# theta = 2, 1
+# 10 000 dla IF
+
+get_fisher_est <- function(theta) {
+  fisher_values = lapply(c(20, 50, 100), function(sample_size) sapply(1:1e4, function(i) {
+  sample = rbeta(sample_size,theta, 1)
+  # liczymy MLE ze wzoru
+  mle = -sample_size/sum(log(sample))
+  # Liczymy informację Fishera ze wzoru (mieszamy 2 wzory)
+  fi = 1 / mle^2
+  # zwracamy informację fishera
+  fi
+  }))
+
+  # liczymy estymator informacji Fishera dla poszczególnych n (jako średnią)
+  fisher_est = sapply(fisher_values, mean)
+  fisher_est
+  
+}
+
+fisher_05_1 = get_fisher_est(0.5)
+fisher_1_1 = get_fisher_est(1)
+fisher_2_1 = get_fisher_est(2)
+fisher_5_1 = get_fisher_est(5)
+
+# zwraca estymator i fishera dla podanego n 
+get_fisher_estimated = function(sample_size, theta) {
+  if (theta == 2) {
+    fisher_2_1[sample_size == c(20, 50, 100)]
+  } else if (theta == 0.5) {
+    fisher_05_1[sample_size == c(20, 50, 100)]
+  } else if (theta == 1) {
+    fisher_1_1[sample_size == c(20, 50, 100)]
+  } else {
+    fisher_5_1[sample_size == c(20, 50, 100)]
+  }
+}
+
+
+# zmienna Y
+get_Y <- function(theta) {
+  new_rv = lapply(c(20, 50, 100), function(sample_size) lapply(1:1e4, function(i) {
+  sample = rbeta(sample_size, theta, 1)
+  mle = -sample_size/sum(log(sample))
+  
+  list(rv_values = sqrt(sample_size*get_fisher_estimated(sample_size, theta)) * (mle - theta),
+       sample_size = sample_size,
+       iter = i,
+       theta = theta)
+  
+  }))
+  rvs = rbindlist(unlist(new_rv, F, F))
+  rvs
+}
+
+Y_05 <- get_Y(0.5)
+
+rvs <- rbind(get_Y(0.5), get_Y(1), get_Y(2), get_Y(5))
+
+theta = c("0.5", "1", "2", "5")
+sample_size = c(20, 50, 100)
+labs2 = paste0("beta(", theta, ", 1)")
+labs3 = paste0("n = ", sample_size)
+
+# histogramy
+ggplot(rvs, aes(x=rv_values, colour = sample_size))+
+  geom_histogram(binwidth = 0.5, color="black", fill="lightgrey") +
+  facet_grid(sample_size~theta,
+             labeller = labeller(theta = setNames(labs2, theta), 
+             sample_size = setNames(labs3, sample_size))) +
+  theme_bw() + 
+  xlab("Y") +
+  ylab(" ") +
+  xlim(c(-5, 5))
+```
+
+### Analiza histogramów zmiennej $Y$
+
+Wszystkie histogramy przypominają wizualnie rozkład $N(0, 1)$. Dla dwóch pierwszych rzędów nieco więcej jest wartości dodatnich niż ujemnych, ale kształt poprawia się wraz ze wzrostem liczebności pojedynczej próby $n$.
+
+```{r zad3_2, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=9, fig.height=6}
+
+
+# qqploty
+
+
+ggplot(rvs, aes(sample = rv_values,
+                color = reorder(as.character(sample_size),
+                                sample_size))) +
+  geom_abline(slope = 1, intercept = 0, linewidth = 1.2) +
+  geom_qq(distribution = qnorm) +
+  scale_color_discrete(name = "rozmiar próby") +
+  theme_bw() +
+  facet_wrap(~theta, labeller = as_labeller(setNames(labs2, theta))) +
+  theme(legend.position = "bottom") +
+  xlab("kwantyle teoretyczne") +
+  ylab("kwantyle z eksperymentu")
+```
+
+### Analiza wykresów kwantylowo-kwantylowych zmiennej $Y$
+
+Wykresy kwantylowo-kwantylowe dodatkowo potwierdzają obserwacje poczynione przy histogramach - wartości krańcowe z eksperymetnu nieco odstają od tych z rozkładu normalnego (szczególnie prawy koniec, czyli wartości dodatnie), natomiast wraz ze wzrostem $n$ rozkład $Y$ coraz bardziej przypomina $N(0, 1)$. Co więcej, analizując oba typy wykresów można dojść do wniosku, że zbieżność ta zachodzi stosunkowo szybko - widać dużą różnicę dla $n = 20$ i $n = 50$.
+\newline
+Nie widać większych zależności między kształtem wykresów a zmianą wartości $\theta$, co jest uzasadnione - jak wynika twierdzenia przedstawionego na początku zadania, rozkład teoretyczny $Y$ nie zależy od $\theta$.
+
+
+\newpage 
+
+# Estymacja parametru przesunięcia dla rozkładu Laplace'a. Porównanie z estymacją średniej dla rozkładu normalnego
+
+W tym zadaniu, podobnie w zadaniu 1 z listy 1, wybierać będziemy najlepszy estymator spośród podanych. 
+Stosowane estymatory:
+
+  - Estymator 1: średnia arytmetyczna
+  - Estymator 2: mediana
+  - Estymator 3: średnia ważona z wybranymi wagami
+  - Estymator 4: średnia ważona z zadanymi wagami
+  
+Obciążenie, błąd średniokwadratowy i wariancję dla każdej z propozycji porównamy na wykresach. Spodziewamy się, że najlepiej wypadnie mediana, ponieważ to ona jest ENW dla tego rozkładu według przykładu z wykładu (przykład  6.1.3 we wspomnianym wyżej podręczniku).
+
+Przypomnijmy najpierw wyniki porównania dla rozkładu normalnego:
+
+
+```{r zad5, eval=TRUE, message=FALSE, echo=FALSE}
+k <- 10000
+laplace_stat <- function(n,thet,mi){
+
+  M <- matrix(rlaplace(k*n, thet, mi), ncol = n, nrow = k)
+
+  M_1 <- apply(M, 1, mean)
+
+  M_2 <- apply(M, 1, median)
+
+  th_3<-function(X){
+    t<-sample(n)
+    t<-t/sum(t)
+    return(weighted.mean(X,t))
+  }
+  M_3 <- apply(M, 1, th_3)
+
+  th_4 <- function(X){
+    n = length(X)
+    w <- c()
+    for(i in 1:n){
+      w_i = dnorm(qnorm((i-1)/n)) - dnorm(qnorm(i/n))
+      w <- c(w, w_i)
+    }
+    X <- sort(X)
+    return(sum(X*w))
+  }
+  M_4 <- apply(M, 1, th_4)
+  blad <- c(sum((M_1-thet)^2)/k, sum((M_2-thet)^2)/k, sum((M_3-thet)^2)/k, sum((M_4-thet)^2)/k)
+
+  obc <- c(1/k*sum(M_1-thet), 1/k*sum(M_2-thet), 1/k*sum(M_3-thet), 1/k*sum(M_4-thet))
+
+  df1 <- data.frame(
+    "Estymator" = c("Estymator 1", "Estymator 2", "Estymator 3", "Estymator 4"),
+    "Wariancja" = c(var(M_1), var(M_2), var(M_3), var(M_4)),
+    "Błąd" = blad,
+    "Obciążenie" = obc)
+
+  return(df1)
+}
+
+#n=50
+results_laplace<-rbind(
+  cbind(rbind(cbind(laplace_stat(50,1,1),lokation=1,scale=1),
+        cbind(laplace_stat(50,4,1),lokation=4,scale=1),
+        cbind(laplace_stat(50,1,2),lokation=1,scale=2)),sample_size=50),
+
+  #n=20
+  cbind(rbind(cbind(laplace_stat(20,1,1),lokation=1,scale=1),
+        cbind(laplace_stat(20,4,1),lokation=4,scale=1),
+        cbind(laplace_stat(20,1,2),lokation=1,scale=2)), sample_size=20),
+
+  #n=100
+  cbind(rbind(cbind(laplace_stat(100,1,1),lokation=1,scale=1),
+        cbind(laplace_stat(100,4,1),lokation=4,scale=1),
+        cbind(laplace_stat(100,1,2),lokation=1,scale=2)), sample_size=100)
+)
+
+
+# funkcja licząca dla rozkładu normalnego
+normal_stat <- function(n,thet,mi){
+  M <- matrix(rnorm(k*n, thet, mi), ncol = n, nrow = k)
+  
+  M_1 <- apply(M, 1, mean)
+  
+  M_2 <- apply(M, 1, median)
+  
+  th_3<-function(X){
+    t<-sample(n)
+    t<-t/sum(t)
+    return(weighted.mean(X,t))
+  }
+  M_3 <- apply(M, 1, th_3)
+  
+  th_4 <- function(X){
+    n = length(X)
+    w <- c()
+    for(i in 1:n){
+      w_i = dnorm(qnorm((i-1)/n)) - dnorm(qnorm(i/n))
+      w <- c(w, w_i)
+    }
+    X <- sort(X)
+    return(sum(X*w))
+  }
+  M_4 <- apply(M, 1, th_4)
+  
+  # linijka pod spodem się zmienila :D
+  blad <- c(sum((M_1-thet)^2)/k, sum((M_2-thet)^2)/k, sum((M_3-thet)^2)/k, sum((M_4-thet)^2)/k)
+  
+  obc <- c(1/k*sum(M_1-thet), 1/k*sum(M_2-thet), 1/k*sum(M_3-thet), 1/k*sum(M_4-thet))
+  
+  df1 <- data.frame(
+    "Estymator" = c("Estymator 1", "Estymator 2", "Estymator 3", "Estymator 4"),
+    "Wariancja" = c(var(M_1), var(M_2), var(M_3), var(M_4)),
+    "Błąd" = blad,
+    "Obciążenie" = obc)
+  
+  return(df1)
+}
+ 
+ 
+results_normal<-rbind(
+  cbind(rbind(cbind(normal_stat(50,1,1),lokation=1,scale=1),
+        cbind(normal_stat(50,4,1),lokation=4,scale=1),
+        cbind(normal_stat(50,1,2),lokation=1,scale=2)),sample_size=50),
+  
+  #n=20
+  cbind(rbind(cbind(normal_stat(20,1,1),lokation=1,scale=1),
+        cbind(normal_stat(20,4,1),lokation=4,scale=1),
+        cbind(normal_stat(20,1,2),lokation=1,scale=2)), sample_size=20),
+  
+  #n=100
+  cbind(rbind(cbind(normal_stat(100,1,1),lokation=1,scale=1),
+        cbind(normal_stat(100,4,1),lokation=4,scale=1),
+        cbind(normal_stat(100,1,2),lokation=1,scale=2)), sample_size=100)
+)
+ 
+results_laplace$distribution="Laplace"
+results_normal$distribution="Normal"
+```
+
+```{r zad5_4, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=8, fig.height=10}
+
+ggplot(data.table::melt(data.table::as.data.table(results_normal),
+                        measure.vars = c("Błąd", "Wariancja", "Obciążenie"),
+                        value.name = "Estimated", variable.name = "Stat"),
+       aes(x = reorder(as.character(sample_size), sample_size), y = Estimated, col = Estymator)) +
+  geom_point(stat = "identity", position = "dodge") +
+  facet_grid(Stat~paste0("N(",lokation,", ",scale,")"), scales = "free_y") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  xlab("Rozmiar próby") +
+  ylab("Oszacowana statystyka estymatora")
+
+
+```
+
+Ponieważ obciążenie dla estymatora numer 4 jest bardzo duże w porównaniu do pozostałych, zobaczmy ten wykres tylko dla propozycji 1-3 dla lepszej widoczności:
+
+```{r zad5_5, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=8, fig.height=6}
+
+ggplot(data.table::melt(data.table::as.data.table(results_normal),
+                        measure.vars = c("Błąd", "Wariancja", "Obciążenie"),
+                        value.name = "Estimated", variable.name = "Stat")[Stat == "Obciążenie" & Estymator != "Estymator 4"],
+       aes(x = reorder(as.character(sample_size), sample_size), y = Estimated, col = Estymator)) +
+    # geom_point(data = results_normal, color = "grey") +
+  geom_point(stat = "identity", position = "dodge") +
+  # geom_point(aes(), data = results_normal, color = "red") +
+  facet_grid(Stat~paste0("N(",lokation,", ",scale,")"), scales="free_y") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  xlab("Rozmiar próby") +
+  ylab("Oszacowane obciążenie estymatora")
+
+
+```
+
+
+## Porównanie estymatorów dla parametru przesunięcia w rozkładzie Laplace'a
+
+Wykresy dla rozkładu Laplace'a prezentują się następująco:
+
+```{r zad5_2, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=8, fig.height=10}
+ggplot(data.table::melt(data.table::as.data.table(results_laplace),
+                        measure.vars = c("Błąd", "Wariancja", "Obciążenie"),
+                        value.name = "Estimated", variable.name = "Stat"),
+       aes(x = reorder(as.character(sample_size), sample_size), y = Estimated, col = Estymator)) +
+    # geom_point(data = results_normal, color = "grey") +
+  geom_point(stat = "identity", position = "dodge") +
+  # geom_point(aes(), data = results_normal, color = "red") +
+  facet_grid(Stat~paste0("Laplace(",lokation,", ",scale,")"), scales="free_y") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  xlab("Rozmiar próby") +
+  ylab("Oszacowana statystyka estymatora")
+
+```
+
+Podobnie jak w przypadku rozkładu normalnego (zadanie 1, lista 1), zdecydowanie najgorszym estymatorem parametru $\theta$ okazał się estymator numer 4 (średnia ważona z zadanymi wagami). Jego obciążenie było tak różne od obciążenia pozostałych trzech, że zbijają się one w jeden punkt na wykresie. Zobaczmy zatem i w tym przypadku, jak wyglądałaby wizualna prezentacja obciążenia bez metody numer 4:
+
+```{r zad5_3, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=8, fig.height=6}
+
+ggplot(data.table::melt(data.table::as.data.table(results_laplace),
+                        measure.vars = c("Błąd", "Wariancja", "Obciążenie"),
+                        value.name = "Estimated", variable.name = "Stat")[Stat == "Obciążenie" & Estymator != "Estymator 4"],
+       aes(x = reorder(as.character(sample_size), sample_size), y = Estimated, col = Estymator)) +
+    # geom_point(data = results_normal, color = "grey") +
+  geom_point(stat = "identity", position = "dodge") +
+  # geom_point(aes(), data = results_normal, color = "red") +
+  facet_grid(Stat~paste0("Laplace(",lokation,", ",scale,")"), scales="free_y") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  xlab("Rozmiar próby") +
+  ylab("Oszacowane obciążenie estymatora")
+
+```
+
+Zgodnie w przewidywaniami, w przeciwieństwie do rozkładu normalnego, gdzie najlepszym estymatorem okazała się średnia arytmetyczna (a drugim godnym uwagi - średnia ważona w własnymi wagami), tu stosunkowo najlepszy okazał się estymator numer 2, czyli mediana. Ma on najmniejsze obciążenie, wariancję oraz błąd średniokwadratowy. Wyniki estymatorów 1-3 poprawiają się wraz ze wzrostem liczebności próby $n$. Natomiast estymator numer 4, czyli średnia z zadanymi wagami, tak jak w przypadku rozkładu normalnego znacząco odstaje od pozostałych.
+\newline
+Spójrzmy na proste histogramy, żeby zobaczyć, czy może on być estymatorem parametru skali zamiast parametru położenia:
+
+```{r ic_stont, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.width=8, fig.height=10}
+k <- 10000
+M4 <- function(n,thet,mi){
+  
+  M <- matrix(rlaplace(k*n, thet, mi), ncol = n, nrow = k)
+  
+  th_4 <- function(X){
+    n = length(X)
+    w <- c()
+    for(i in 1:n){
+      w_i = dnorm(qnorm((i-1)/n)) - dnorm(qnorm(i/n))
+      w <- c(w, w_i)
+    }
+    X <- sort(X)
+    return(sum(X*w))
+  }
+  M_4 <- apply(M, 1, th_4)
+  
+  return(M_4)
+}
+
+#n=50
+M4_df<-rbind(
+  cbind(rbind(cbind(M4(50,1,1),lokation=1,scale=1),
+              cbind(M4(50,4,1),lokation=4,scale=1),
+              cbind(M4(50,1,2),lokation=1,scale=2)),sample_size=50),
+  
+  #n=20
+  cbind(rbind(cbind(M4(20,1,1),lokation=1,scale=1),
+              cbind(M4(20,4,1),lokation=4,scale=1),
+              cbind(M4(20,1,2),lokation=1,scale=2)), sample_size=20),
+  
+  #n=100
+  cbind(rbind(cbind(M4(100,1,1),lokation=1,scale=1),
+              cbind(M4(100,4,1),lokation=4,scale=1),
+              cbind(M4(100,1,2),lokation=1,scale=2)), sample_size=100)
+)
+
+
+colnames(M4_df) = c("M4", "lokation", "scale", "sample_size")
+
+M4_df <- data.frame(M4_df)
+
+
+scale = c("1", "2", "1")
+sample_size = c(20, 50, 100)
+labs5 = paste0("skala = ", scale)
+labs6 = paste0("n = ", sample_size)
+
+
+ggplot(M4_df,
+       aes(x = M4)) +
+         geom_histogram(binwidth = 0.5, color="black", fill="lightgrey") +
+         facet_grid(sample_size~scale,
+                    labeller = labeller(scale = setNames(labs5, scale), 
+                                        sample_size = setNames(labs6, sample_size))) +
+         theme_bw() +
+         theme(legend.position = "bottom") +
+         xlab("Rozmiar próby") +
+         ylab(" ") +
+        xlim(c(0, 5))
+```
+
+Jak widać, estymator ten nie jest dobrym estymatorem parametru skali, zatem nie jest dobrym estymatorem żadnego z parametrów dla rozkładu Laplace'a. Za to w przypadku rozkładu normalnego był on całkiem dobrym estymatorem odchylenia standardowego. 
+\newline
+Podsumowując, dla rozkładu Laplace'a spośród czterech rozpatrywanych opcji najlepszym estymatorem położenia $\theta$ okazała się mediana. Choć rozkład Laplace'a i rozkład normalny cechuje pewne podobieństwo wizualne (symetria względem pierwszego parametru, maksimum gęstości prawdopodobieństwa w $\theta$, lekkie ogony), to jednak estymatory dla parametrów tych rozkładów się od siebie różnią.
