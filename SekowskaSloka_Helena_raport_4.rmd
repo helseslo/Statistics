@@ -1,0 +1,1127 @@
+---
+title: "Badanie funkcji mocy testu"
+author: "Helena Sękowska-Słoka, nr indeksu 321531"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+toc-title: "SPIS TREŚCI"
+urlcolor: blue
+---
+
+```{r setup, include=FALSE, cache=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning = FALSE, cache = TRUE)
+options(Encoding="UTF-8")
+
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(scales)
+library(grid)
+library(matrixStats)
+library(kableExtra)
+library(latex2exp)
+library("EnvStats")
+library(knitr)
+library(xtable)
+set.seed(416)
+```
+
+\newpage
+
+# Cel raportu
+
+Celem tego raportu będzie badanie funkcji mocy testu. Będziemy testować hipotezę:
+
+$$H_0: F = G$$
+
+Przeciwko: 
+
+$$H_1=F \neq G$$
+Gdzie $F$ to dystrybuanta próby losowej $X_1, X_2, ..., X_m$, zaś $G$ to dystrybuanta $Y_1, Y_2,...,Y_n$, czyli drugiej próby losowej z pary. Będziemy zatem testować równość dystrybuant, a co za tym idzie - równość rozkładów.
+
+\newpage
+
+# Wyznaczenie wartości krytycznych
+
+Zaczynamy od wygenerowania 10000 razy po dwóch prób o liczebnościach $n=m=20$ i dwóch prób o liczebnościach $n=m=50$. Dla każdego powtórzenia obliczamy wartości statystyk:
+
+  1. Wilcoxona (W)
+  2. Ansari-Bradleya (AB)
+  3. Lepage'a (L)
+  4. Kołmogorowa-Smirnova (KS)
+  
+Robimy to zgodnie ze wzorami podanymi na liście, osobno dla par o liczebności $n=20$ i par o liczebności $n=50$.
+\newline
+Następnie na tej podstawie wyznaczamy wartości krytyczne odpowiadające testom prawostronnym dla powyższych statystyk. Robimy to w oparciu o dystrybuantę empiryczną, czyli oszacowaną na podstawie przeprowadzonego eksperymentu. Za poziom istotności przyjmujemy standardowo $\alpha=0.05$. Wartości krytyczne będą zatem kwantylami rzędu 0.95 z rozkładów empirycznych.
+\newline
+Taki sposób generowania wartości krytycznych jest poprawny, ponieważ wartości statystyk nie zależą od rozkładu, z którego generujemy.
+Mamy tę pewność, ponieważ warunek całkowy jest spełniony dla zadanych funkcji $\varphi_1$, $\varphi_2$, czyli przy prawdziwości hipotezy zerowej statystyki $T_\varphi$ mają rozkład asymptotyczny normalny. Co za tym idzie, statystyki W i AB będące ich kwadratami mają asymptotyczny rozkład $\chi^2$ z jednym stopniem swobody, natomiast statystyka L, będąca sumą dwóch zmiennych z asymptotycznego rozkładu $\chi^2$ z jednym stopniem swobody, będzie miała rozkład asymptotyczny $\chi^2$ z dwoma stopniami swobody. Z kolei statystyka KS ma rozkład Kołmogorowa, który również nie zależy od rozkładów próbek, dzięki czemu test KS też jest nieparametryczny. Ponadto rozpatrywane rozkłady, to znaczy rozkład normalny, logistyczny i Cauchy'ego są ciągłe. Zatem postępując w wyżej opisany sposób, uzyskaliśmy wiarygodne empiryczne wartości krytyczne.
+
+
+## Tabela wartości krytycznych
+
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE}
+alpha <- 0.05
+
+phi1 <- function(u){
+  sqrt(3) * (2 * u - 1)
+} 
+
+phi2 <- function(u){
+  sqrt(48) * (0.25 - abs(u - 0.5))
+}
+
+change <- function(R_i, N){
+  (R_i - 0.5) / N
+}
+
+T_phi <- function(phi, m, n, X, Y){
+  N <- m + n
+  c_ranks <- rank(c(X, Y))
+  v1 <- phi(change(c_ranks[1:m], N))
+  v2 <- phi(change(c_ranks[(m + 1):N], N))
+  sqrt((m * n) / N) * ((1 / m) * sum(v1) - (1/n) * sum(v2))
+}
+
+
+
+# Zadanie 1
+k <- 1e4
+n1 <- 20
+n2 <- 50
+
+
+simulation_result <- lapply(1:k, function(i){
+  X <- rnorm(n1)
+  Y <- rnorm(n1)
+  KS_test <- ks.test(X, Y)
+  list(
+    W_stat20 = T_phi(phi1, n1, n1, X, Y)^2,
+    # W_crit = wilcox.test(X, Y, paired = TRUE)$p.value,
+    AB_stat20 = T_phi(phi2, n1, n1, X, Y)^2,
+    #AB_crit = ansari.test(X, Y)$p.value, 
+    L_stat20 = T_phi(phi1, n1, n1, X, Y)^2 + T_phi(phi2, n1, n1, X, Y)^2,
+    # L_crit = lepage.test(X, Y)$p.value,
+    KS_stat20 = sqrt(n1/2)*KS_test$statistic[[1]]
+    #KS_crit = KS_test$p.value
+  )
+})
+
+sim_dt20 = simulation_result
+sim_dt20 = data.table::rbindlist(sim_dt20)
+
+
+simulation_result <- lapply(1:k, function(i){
+  X <- rnorm(n2)
+  Y <- rnorm(n2)
+  KS_test <- ks.test(X, Y)
+  list(
+    W_stat50 = T_phi(phi1, n2, n2, X, Y)^2,
+    # W_crit = wilcox.test(X, Y, paired = TRUE)$p.value,
+    AB_stat50 = T_phi(phi2, n2, n2, X, Y)^2,
+    #AB_crit = ansari.test(X, Y)$p.value, 
+    L_stat50 = T_phi(phi1, n2, n2, X, Y)^2 + T_phi(phi2, n2, n2, X, Y)^2,
+    # L_crit = lepage.test(X, Y)$p.value,
+    KS_stat50 = sqrt(n2/2)*KS_test$statistic[[1]]
+    #KS_crit = KS_test$p.value
+  )
+})
+
+sim_dt50 = simulation_result
+sim_dt50 = data.table::rbindlist(sim_dt50)
+
+
+W_crit <- c(quantile(sim_dt20$W_stat20, 0.95), quantile(sim_dt50$W_stat50, 0.95))
+AB_crit <- c(quantile(sim_dt20$AB_stat20, 0.95), quantile(sim_dt50$AB_stat50, 0.95))
+L_crit <- c(quantile(sim_dt20$L_stat20, 0.95), quantile(sim_dt50$L_stat50, 0.95))
+KS_crit <- c(quantile(sim_dt20$KS_stat20, 0.95), quantile(sim_dt50$KS_stat50, 0.95))
+```
+
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE}
+tests_names <- c("W", "AB", "L", "KS")
+critical_values20 <- round(c(W_crit[1], AB_crit[1], L_crit[1], KS_crit[1]), 4)
+critical_values50 <- round(c(W_crit[2], AB_crit[2], L_crit[2], KS_crit[2]), 4)
+frame_stats <- data.frame(tests_names, critical_values20, critical_values50)
+colnames_v <- c("test", "wartość krytyczna", "wartość krytyczna")
+colnames(frame_stats) = colnames_v
+
+kbl(frame_stats, caption = "Wartości krytyczne dla zadanych testów prawostronnych") %>%
+  kable_styling(latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "n = 20" = 1, "n = 50" = 1))
+```
+
+
+
+\newpage
+
+
+
+
+
+
+# Funkcja mocy w zależności od parametru $\mu_2$
+
+Będziemy przybliżać funkcję mocy w zależności od parametru $\mu_2$ empirycznie, to znaczy dla danego $\mu_2$ będziemy losować 10000 razy próby analogiczne jak w poprzednim podpunkcie, przy czym dla każdej z nich będziemy określać moc, to znaczy sprawdzać, ile razy została odrzucona hipoteza zerowa w stosunku do liczby wszystkich par. Hipotezę tę odrzucać będziemy na podstawie wyliczonych wcześniej wartości krytycznych, to znaczy w sytuacji, gdy wartość statystyki jest większa od wartości krytycznej.
+\newline
+Dla $n=20$ zakres parametru $\mu_2$ przyjmujemy taki, jak zadany, natomiast dla $n=50$ dobieramy go tak, żeby zobaczyć zmianę mocy w pełnym zakresie. Wobec tego dla prób pięćdziesięcioelementowych bierzemy $\mu_2$ w zakresie od $0$ do $1.4$, idąc co $0.2$, za wyjątkiem rozkładu Cauchy'ego, gdzie przyjmujemy je jak na liście od 0 do 3 co 0.5.
+\newline
+Warto jednak wspomnieć, że dla $n=20$ w przypadku rozkładu logistycznego nie zobaczymy pełnego zakresu mocy, jednakże dla tej liczebności próby zostały na liście zadane takie, a nie inne wartości $\mu_2$, zatem zostawiamy je bez zmian, żeby wykonać zadanie zgodnie z poleceniem.
+
+## Wykresy funkcji mocy
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+library(data.table)
+
+mu1 <- 0
+sigma1 <- 1
+mus2 <- seq(0.2, 1.4, 0.2)
+sigma2 <- 1
+
+mus2_50 <- seq(0, 1.4, 0.2)
+
+# a
+
+simulation_result <- lapply(mus2, function(mu2){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rnorm(n, mean = 0, sd = 1)
+    Y = rnorm(n, mean = mu2, sd = 1)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(mus2_50, function(mu2){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[2]
+    AB_crit=AB_crit[2]
+    KS_crit=KS_crit[2]
+    L_crit=L_crit[2]
+    X = rnorm(n, mean = 0, sd = 1)
+    Y = rnorm(n, mean = mu2, sd = 1)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('mu2', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = mu2, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, scales = "free_x", labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  xlab(expression(paste(mu[2]))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu normalnego")
+
+```
+
+
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+
+mu1 <- 0
+sigma1 <- 1
+mus2 <- seq(0.2, 1.4, 0.2)
+sigma2 <- 1
+
+mus2_50 <- seq(0, 1.4, 0.2)
+
+# a
+
+simulation_result <- lapply(mus2, function(mu2){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rlogis(n, location = 0, scale = 1)
+    Y = rlogis(n, location = mu2, scale = 1)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(mus2_50, function(mu2){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[2]
+    AB_crit=AB_crit[2]
+    KS_crit=KS_crit[2]
+    L_crit=L_crit[2]
+    X = rlogis(n, location = 0, scale = 1)
+    Y = rlogis(n, location = mu2, scale = 1)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('mu2', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = mu2, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, scales = "free_x", labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  xlab(expression(paste(mu[2]))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu logistycznego")
+
+```
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+
+mu1 <- 0
+sigma1 <- 1
+mus2 <- seq(0, 3, 0.5)
+sigma2 <- 1
+
+mus2_50 <- seq(0, 3, 0.5)
+
+# a
+
+simulation_result <- lapply(mus2, function(mu2){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rcauchy(n, location = 0, scale = 1)
+    Y = rcauchy(n, location = mu2, scale = 1)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(mus2_50, function(mu2){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[2]
+    AB_crit=AB_crit[2]
+    KS_crit=KS_crit[2]
+    L_crit=L_crit[2]
+    X = rcauchy(n, location = 0, scale = 1)
+    Y = rcauchy(n, location = mu2, scale = 1)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('mu2', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = mu2, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, scales = "free_x", labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  xlab(expression(paste(mu[2]))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu Cauchy'ego")
+
+```
+
+Widzimy, że dla zadanych parametrów z ruchomym $\mu_2$ zdecydowanie najgorzej wypada test Ansari-Bradleya - dla obu liczebności i wszystkich rozpatrywanych rozkładów próbek. Wyniki pozostałych testów były dość zbliżone. Dla rozkładu normalnego i logistycznego największe moce miał test Wilcoxona, z kolei dla rozkładu Cauchy'ego - test Kołmogorowa-Smirnova. Rozkład Cauchy'ego różni się znacząco od dwóch pozostałych rozkładów, między innymi tym, że ma nieokreśloną wariancję i wartość oczekiwaną. Test KS, który w jego przypadku okazał się najlepszy, oparty jest na porównywaniu dystrybuant empirycznych.
+\newline
+Test AB daje tak złe wyniki, ponieważ bada on równość rozkładów poprzez porównywanie parametrów skali, a tutaj parametry te dla obu próbek są takie same. Manipulowaliśmy natomiast parametrem położenia w drugiej próbce, zatem testy, które biorą pod uwagę takie różnice, sprawdzają się znacznie lepiej.
+\newline
+Dla większej liczebności próbek wyniki były lepsze niż dla mniejszych, co jest zrozumiałe ze względu na fakt, że mamy do czynienia z rozkładami asymptotycznymi, zatem w miarę, jak $n$ dąży do nieskończoności, testy będą działać coraz lepiej (o ile znajdują zastosowanie w podanym przypadku). Różnica ta jest bardziej widoczna w przypadku rozkładów innych niż normalny.
+\newline
+Spośród trzech rozkładów dla tak zadanych zakresów $\mu_2$ najbardziej wyróżnia się wykres dla rozkładu logistycznego - widac, że przy $n=20$ potrzebowaliśmy większych wartości parametru, żeby osiągnąć wartości mocy bliskie 1.
+\newline
+Podsumowując, test Ansari-Bradleya nie powinien być stosowany do porównywania rozkładów różniących się jedynie parametrem położenia. Pozostałe testy zaś sprawdzają się coraz lepiej wraz ze zwiększaniem się różnicy między $\mu_1$ i $\mu_2$. Jeśli chcemy, żeby nasze moce testów były większe, powinniśmy wybrać większą próbkę.
+
+
+
+
+
+
+
+
+
+
+\newpage
+
+# Funkcja mocy w zależności od parametru $\sigma_2$
+
+Funkcję mocy będziemy wyznaczać empirycznie, analogicznie jak w poprzednim przypadku, z tą różnicą, że będziemy manipulować parametrem $\sigma_2$, a $\mu_2$ pozostanie tym razem bez zmian.
+\newline
+W tym wypadku zakresy $\sigma_2$ dla $n=50$ pozostawiamy takie, jak zostały zadane dla $n=20$.
+
+## Wykresy funkcji mocy
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+mu1 <- 0
+sigma1 <- 1
+mu2 <- 0
+sigmas2 <- seq(1, 4, 0.5)
+
+sigmas2_50 <- seq(1, 4, 0.5)
+
+# a
+
+simulation_result <- lapply(sigmas2, function(sigma2){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rnorm(n, mean = 0, sd = 1)
+    Y = rnorm(n, mean = mu2, sd = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(sigmas2_50, function(sigma2){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rnorm(n, mean = 0, sd = 1)
+    Y = rnorm(n, mean = mu2, sd = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('sigma2', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = sigma2, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, scales = "free_x", labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  xlab(expression(paste(sigma[2]))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu normalnego")
+
+```
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+mu1 <- 0
+sigma1 <- 1
+mu2 <- 0
+sigmas2 <- seq(1, 4, 0.5)
+
+sigmas2_50 <- seq(1, 4, 0.5)
+
+# a
+
+simulation_result <- lapply(sigmas2, function(sigma2){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rlogis(n, location = 0, scale = 1)
+    Y = rlogis(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(sigmas2_50, function(sigma2){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rlogis(n, location = 0, scale = 1)
+    Y = rlogis(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('sigma2', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = sigma2, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, scales = "free_x", labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  xlab(expression(paste(sigma[2]))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu logistycznego")
+
+```
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+mu1 <- 0
+sigma1 <- 1
+mu2 <- 0
+sigmas2 <- seq(1, 7, 1)
+
+sigmas2_50 <- seq(1, 7, 1)
+
+simulation_result <- lapply(sigmas2, function(sigma2){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rcauchy(n, location = 0, scale = 1)
+    Y = rcauchy(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(sigmas2_50, function(sigma2){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    X = rcauchy(n, location = 0, scale = 1)
+    Y = rcauchy(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('sigma2', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = sigma2, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, scales = "free_x", labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  xlab(expression(paste(sigma[2]))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu Cauchy'ego")
+
+```
+
+W przypadku manipulacji parametrem $\sigma_2$ wyniki uległy znaczącej zmianie. Tym razem zdecydowanie najgorszy okazał się test Wilcoxona. Stało się tak, ponieważ test ten bada równość rozkładów w oparciu o porównywanie ich parametrów przesunięcia, a te były sobie równe dla wszystkich próbek. Efekt zatem okazał się analogiczny jak dla testu AB w przypadku takich samych parametrów skali, a różnych przesunięć.
+\newline
+Tutaj test AB sprawdza się najlepiej ze wszystkich, bowiem został on skonstruowany do wykrywania zmian parametru skali, a to właśnie tym parametrem manipulujemy. Obserwujemy natomiast inne niż w przypadku zmiany $\mu_2$ zachowanie funkcji mocy dla testu KS - wypada on tu o wiele gorzej dla próbek o mniejszej liczebności.
+\newline
+Pary wykresów dla wszystkich rozkładów wyglądają stosunkowo podobne, w przeciwieństwie do poprzedniego przypadku, gdzie wykresy dla rozkładu logistycznego odróżniały się od pozostałych.
+
+
+\newpage
+
+
+# Funkcja mocy w zależności od wektora parametrów ($\mu_2, \sigma_2$)
+
+Funkcję mocy będziemy wyznaczać empirycznie, analogicznie jak w poprzednich przypadkach, z tą różnicą, że będziemy manipulować obydwoma parametrami, tj. $\sigma_2$ oraz $\mu_2$.
+\newline
+W tym zadaniu zostawiamy dla $n=50$ takie zakresy, jak dla $n=20$ ze względu na zachowanie oryginalnych par i niepowtarzanie wartości $\sigma_2$, a jednocześnie pozostawienie funkcji mocy jako niezdegenerowanej, rosnącej.
+
+## Wykresy funkcji mocy
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+mu1 <- 0
+sigma1 <- 1
+mus2 <- seq(0.2, 1.4, 0.2)
+sigmas2 <- seq(1, 4, 0.5)
+
+coords <- 1:7
+
+
+simulation_result <- lapply(coords, function(coord){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    mu2 = mus2[coord]
+    sigma2 = sigmas2[coord]
+    X = rnorm(n, mean = 0, sd = 1)
+    Y = rnorm(n, mean = mu2, sd = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n,
+         coord = coord)
+    })
+  })
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(coords, function(coord){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    mu2 = mus2[coord]
+    sigma2 = sigmas2[coord]
+    X = rnorm(n, mean = 0, sd = 1)
+    Y = rnorm(n, mean = mu2, sd = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n,
+         coord = coord)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('coord', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = coord, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 45, vjust=1, hjust=0.75)) +
+  scale_x_continuous(breaks = seq(1,7,1),
+                     labels = c(paste0("(", mus2[1], ", ", sigmas2[1], ")"),
+                                paste0("(", mus2[2], ", ", sigmas2[2], ")"),
+                                paste0("(", mus2[3], ", ", sigmas2[3], ")"),
+                                paste0("(", mus2[4], ", ", sigmas2[4], ")"),
+                                paste0("(", mus2[5], ", ", sigmas2[5], ")"),
+                                paste0("(", mus2[6], ", ", sigmas2[6], ")"),
+                                paste0("(", mus2[7], ", ", sigmas2[7], ")"))) +
+  xlab(expression(paste("wektor parametrów (", mu[2], ", ", sigma[2], ")"))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu normalnego")
+
+```
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+mu1 <- 0
+sigma1 <- 1
+mus2 <- seq(0.2, 1.4, 0.2)
+sigmas2 <- seq(1, 4, 0.5)
+
+coords <- 1:7
+
+
+simulation_result <- lapply(coords, function(coord){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    mu2 = mus2[coord]
+    sigma2 = sigmas2[coord]
+    X = rlogis(n, location = 0, scale = 1)
+    Y = rlogis(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n,
+         coord = coord)
+    })
+  })
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(coords, function(coord){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    mu2 = mus2[coord]
+    sigma2 = sigmas2[coord]
+    X = rlogis(n, location = 0, scale = 1)
+    Y = rlogis(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n,
+         coord = coord)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('coord', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = coord, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 45, vjust=1, hjust=0.75)) +
+  scale_x_continuous(breaks = seq(1,7,1),
+                     labels = c(paste0("(", mus2[1], ", ", sigmas2[1], ")"),
+                                paste0("(", mus2[2], ", ", sigmas2[2], ")"),
+                                paste0("(", mus2[3], ", ", sigmas2[3], ")"),
+                                paste0("(", mus2[4], ", ", sigmas2[4], ")"),
+                                paste0("(", mus2[5], ", ", sigmas2[5], ")"),
+                                paste0("(", mus2[6], ", ", sigmas2[6], ")"),
+                                paste0("(", mus2[7], ", ", sigmas2[7], ")"))) +
+  xlab(expression(paste("wektor parametrów (", mu[2], ", ", sigma[2], ")"))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu logistycznego")
+
+```
+
+
+```{r, eval=TRUE, message=FALSE, echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
+mu1 <- 0
+sigma1 <- 1
+mus2 <- seq(0.2, 1.4, 0.2)
+sigmas2 <- seq(1, 7, 1)
+
+coords <- 1:7
+
+
+simulation_result <- lapply(coords, function(coord){
+  lapply(1:k, function(i){
+    n = 20
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    mu2 = mus2[coord]
+    sigma2 = sigmas2[coord]
+    X = rcauchy(n, location = 0, scale = 1)
+    Y = rcauchy(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n,
+         coord = coord)
+    })
+  })
+
+
+
+powers_20 <- unlist(simulation_result, F, F)
+powers_20 <- data.table::rbindlist(powers_20)
+
+simulation_result <- lapply(coords, function(coord){
+  lapply(1:k, function(i){
+    n = 50
+    W_crit=W_crit[1]
+    AB_crit=AB_crit[1]
+    KS_crit=KS_crit[1]
+    L_crit=L_crit[1]
+    mu2 = mus2[coord]
+    sigma2 = sigmas2[coord]
+    X = rcauchy(n, location = 0, scale = 1)
+    Y = rcauchy(n, location = mu2, scale = sigma2)
+    W <- T_phi(phi1, n, n, X, Y)^2
+    AB <- T_phi(phi2, n, n, X, Y)^2
+    L <- T_phi(phi1, n, n, X, Y)^2 + T_phi(phi2, n, n, X, Y)^2
+    KS <- sqrt(n/2)*ks.test(X, Y)$statistic[[1]]
+
+    list(mu1 = mu1, 
+         sigma1 = sigma1,
+         mu2 = mu2,
+         sigma2 = sigma2,
+         W_dec = W > W_crit,
+         AB_dec = AB > AB_crit,
+         L_dec = L > L_crit,
+         KS_dec = KS > KS_crit,
+         size = n,
+         coord = coord)
+    })
+  })
+
+
+
+
+powers_50 <- unlist(simulation_result, F, F)
+powers_50 <- data.table::rbindlist(powers_50)
+
+powers <- rbind(powers_20, powers_50)
+
+powers_plot <- melt(powers, measure.vars = c('W_dec', 'KS_dec', 'L_dec', 'AB_dec'))[, .(power = mean(value)), by = c('coord', 'size', 'variable')]
+
+labels_power <- c(W_dec = "W", KS_dec = "KS", L_dec = "L", AB_dec = "AB")
+size = c("20", "50")
+labs = paste0("n = ", size)
+
+ggplot(powers_plot, aes(x = coord, y = power, group = variable, color = variable)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~size, labeller = as_labeller(setNames(labs, size)), ncol=2) +
+  scale_color_discrete(name = "Test", labels = labels_power) +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 45, vjust=1, hjust=0.75)) +
+  scale_x_continuous(breaks = seq(1,7,1),
+                     labels = c(paste0("(", mus2[1], ", ", sigmas2[1], ")"),
+                                paste0("(", mus2[2], ", ", sigmas2[2], ")"),
+                                paste0("(", mus2[3], ", ", sigmas2[3], ")"),
+                                paste0("(", mus2[4], ", ", sigmas2[4], ")"),
+                                paste0("(", mus2[5], ", ", sigmas2[5], ")"),
+                                paste0("(", mus2[6], ", ", sigmas2[6], ")"),
+                                paste0("(", mus2[7], ", ", sigmas2[7], ")"))) +
+  xlab(expression(paste("wektor parametrów (", mu[2], ", ", sigma[2], ")"))) +
+  ylab("Moc testu") +
+  ggtitle("Wykres funkcji mocy testów dla rozkładu Cauchy'ego")
+
+```
+
+We wszystkich przypadkach najniższe wartości funkcji mocy uzyskaliśmy dla testu Wilcoxona. Co więcej, są one coraz niższe w zależnosci od tego, jak bardzo rozkład różni się od normalnego - w rozkładzie logistycznych test ten wypada mniej więcej dwukrotnie gorzej, za to w rozkładzie Cauchy'ego - około czterokrotnie. Obserwujemy również podobne zjawisko, jak w poprzednim podpunkcie w przypadku testu Kołmogorowa-Smirnova - wyniki znacząco się poprawiają przy zwiększeniu liczebności próby. Dla rozkładu normalnego najlepiej wypada test Lepage'a, natomiast dla pozostałych rozkładów porównywalnie dobre, a nawet nieco wyższe wyniki daje również test Ansari-Bradley'a.
+\newline
+Dobre wyniki testu L tłumaczy budowa statystyki, na której jest on oparty, bowiem jest ona sumą statystyk W i AB, zatem uwzględnia i zmianę parametru położenia, i zmianę parametru skali. Z kolei dobre wyniki testu AB, natomiast złe wyniki testu W wskazują na to, że przy zmianie obu parametrów lepiej rozpoznawalna jest różnica w skali aniżeli w położeniu, a przynajmniej tak stało się przy parametrach dobranych jak w tym zadaniu. Zaznaczmy, że różnice między kolejnymi $\sigma_2$ były znacząco większe niż między kolejnymi $\mu_2$. 
+
+\newpage
+
+# Podsumowanie
+
+Jeśli chcemy badać różnice między dwoma rozkładami, dobrze jest mieć pewne przypuszczenia co do tego, czy różnią się skalą, położeniem czy też obydwoma tymi parametrami, ponieważ w zależności od tego inny test będzie odpowiedni do tego badania.
+\newline
+W przypadku, gdy spodziewamy się, że nasze próbki pochodzą z rozkładów o różnych parametrach położenia, najprawdopodobniej najlepiej będzie użyć testu Wilcoxona, natomiast nie należy stosować testu Ansari-Bradley'a.
+\newline
+Jeśli przypuszczamy, że mamy do czynienia z różnymi skalami, będzie odwrotnie - najskuteczniejszym testem będzie test Ansari-Bradley'a, z kolei nie powinniśmy stosować testu Wilcoxona.
+\newline
+Natomiast w przypadku oczekiwań, że oba parametry są różne, najprawdopodobniej powinniśmy wybrać test Lepage'a. Wyjątek stanowi sytuacja, gdzie jeden parametr różni się w parze znacznie bardziej niż drugi, wówczas lepszy może okazać się test nakierowany na ten parametr (jak test Ansari-Bradley'a w przypadku znacząco większych różnic w skali, a mniejszych w położeniu).
+\newline
+W sytuacji, gdy nic nie wiemy o rozkładach, z których pochodzą próbki (za wyjątkiem założenia, że rozkłady te są ciągłe), najbezpieczniej będzie użyć testu AB lub KS, ponieważ uwzględniają one oba parametry. W przypadku powyższych rozkładów średnio lepiej wypadał test AB.
+
